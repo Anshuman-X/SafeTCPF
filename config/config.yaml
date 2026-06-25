@@ -21,10 +21,25 @@ simulation:
     east: {x: 12, y_range: [10, 13]}
     west: {x: 7, y_range: [10, 13]}
 
+  # Realistic Simulation Parameters (Objective 3)
+  seeds: [42, 101, 202, 303, 404]
+  traffic_densities: ["low", "medium", "high"]
+  pedestrian_densities: ["low", "medium", "high"]
+  
+  background_traffic:
+    enabled: true
+    # Spawning probabilities per step for each density
+    probabilities:
+      low: 0.05
+      medium: 0.15
+      high: 0.30
+    # Vehicle arrival distribution: 'poisson' or 'binomial' or 'uniform'
+    arrival_distribution: "poisson"
+
 planning:
   epsilon: 0.1
-  time_limit: 300 # seconds
-  max_nodes: 5000
+  time_limit: 120 # seconds (tightened for efficiency, thanks to our early-exit optimizations)
+  max_nodes: 2000
 
 # Scenarios for experiments
 scenarios:

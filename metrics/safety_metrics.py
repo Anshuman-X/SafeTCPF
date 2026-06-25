@@ -48,7 +48,7 @@ def calculate_pair_ttc(p1, v1, p2, v2, d=1.5):
     return min(roots)
 
 def calculate_metrics(vehicle_paths, pedestrian_paths=None, grid_width=20, grid_height=24):
-    """Computes safety and efficiency metrics for the simulation paths."""
+    """Computes fine-grained safety and efficiency metrics for the simulation paths."""
     if pedestrian_paths is None:
         pedestrian_paths = []
         
@@ -96,9 +96,12 @@ def calculate_metrics(vehicle_paths, pedestrian_paths=None, grid_width=20, grid_
     avg_speed = np.mean(list(speeds.values()))
     
     # 5. Collisions, Conflicts, and Near Misses
-    collision_count = 0
-    conflict_count = 0
-    near_miss_count = 0
+    veh_veh_collision_count = 0
+    veh_ped_collision_count = 0
+    veh_veh_conflict_count = 0
+    veh_ped_conflict_count = 0
+    veh_veh_near_miss_count = 0
+    veh_ped_near_miss_count = 0
     
     max_t = max(len(p) for p in vehicle_paths.values()) if vehicle_paths else 0
     
@@ -135,12 +138,12 @@ def calculate_metrics(vehicle_paths, pedestrian_paths=None, grid_width=20, grid_
                     
                 dist = np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
                 if dist < 0.1:
-                    collision_count += 1
+                    veh_veh_collision_count += 1
                 else:
                     if dist <= 1.5:
-                        conflict_count += 1
+                        veh_veh_conflict_count += 1
                     if dist <= 1.0:
-                        near_miss_count += 1
+                        veh_veh_near_miss_count += 1
                         
         # Vehicle-Pedestrian conflict checks
         for a, path in vehicle_paths.items():
@@ -154,18 +157,21 @@ def calculate_metrics(vehicle_paths, pedestrian_paths=None, grid_width=20, grid_
                     
                 dist = np.sqrt((p_veh[0] - p_ped[0])**2 + (p_veh[1] - p_ped[1])**2)
                 if dist < 0.1:
-                    collision_count += 1
+                    veh_ped_collision_count += 1
                 else:
-                    if dist <= 1.5:
-                        conflict_count += 1
+                    # Vehicle-Pedestrian safety distance sum: R_veh = 0.75, R_ped = 0.25 -> 1.0
                     if dist <= 1.0:
-                        near_miss_count += 1
+                        veh_ped_conflict_count += 1
+                    if dist <= 0.75:
+                        veh_ped_near_miss_count += 1
 
     max_queue_length = max(queue_lengths) if queue_lengths else 0
     throughput = num_vehicles / max_t if max_t > 0 else 0.0
     
     # 6. Time-to-Collision (TTC) & Critical TTC
-    ttc_list = []
+    veh_veh_ttc_list = []
+    veh_ped_ttc_list = []
+    
     for t in range(1, max_t):
         # Veh-Veh TTC
         for a1 in vehicle_paths.keys():
@@ -185,9 +191,10 @@ def calculate_metrics(vehicle_paths, pedestrian_paths=None, grid_width=20, grid_
                 if t >= len(path1) - 1 and t >= len(path2) - 1:
                     continue
                     
+                # d_vv = 1.5
                 ttc = calculate_pair_ttc(p1, v1, p2, v2, d=1.5)
                 if ttc < float('inf'):
-                    ttc_list.append(ttc)
+                    veh_veh_ttc_list.append(ttc)
                     
         # Veh-Ped TTC
         for a in vehicle_paths.keys():
@@ -207,13 +214,23 @@ def calculate_metrics(vehicle_paths, pedestrian_paths=None, grid_width=20, grid_
                 if t >= len(ped['path']) - 1:
                     continue
                     
-                ttc = calculate_pair_ttc(p1, v1, p2, v2, d=1.5)
+                # d_vp = 1.0
+                ttc = calculate_pair_ttc(p1, v1, p2, v2, d=1.0)
                 if ttc < float('inf'):
-                    ttc_list.append(ttc)
+                    veh_ped_ttc_list.append(ttc)
                         
-    min_ttc = np.min(ttc_list) if ttc_list else 10.0
-    avg_ttc = np.mean(ttc_list) if ttc_list else 10.0
-    critical_ttc_events = sum(1 for val in ttc_list if val <= 1.5)
+    veh_veh_min_ttc = np.min(veh_veh_ttc_list) if veh_veh_ttc_list else 10.0
+    veh_veh_avg_ttc = np.mean(veh_veh_ttc_list) if veh_veh_ttc_list else 10.0
+    veh_veh_critical_ttc_events = sum(1 for val in veh_veh_ttc_list if val <= 1.5)
+    
+    veh_ped_min_ttc = np.min(veh_ped_ttc_list) if veh_ped_ttc_list else 10.0
+    veh_ped_avg_ttc = np.mean(veh_ped_ttc_list) if veh_ped_ttc_list else 10.0
+    veh_ped_critical_ttc_events = sum(1 for val in veh_ped_ttc_list if val <= 1.5)
+    
+    all_ttcs = veh_veh_ttc_list + veh_ped_ttc_list
+    min_ttc = np.min(all_ttcs) if all_ttcs else 10.0
+    avg_ttc = np.mean(all_ttcs) if all_ttcs else 10.0
+    critical_ttc_events = sum(1 for val in all_ttcs if val <= 1.5)
     
     # 7. Post-Encroachment Time (PET) & Critical PET
     cell_occupancy = {} # (x, y) -> list of (time, agent_id)
@@ -232,7 +249,9 @@ def calculate_metrics(vehicle_paths, pedestrian_paths=None, grid_width=20, grid_
                     cell_occupancy[pos] = []
                 cell_occupancy[pos].append((t, f"ped_{ped_id}"))
                 
-    pet_list = []
+    veh_veh_pet_list = []
+    veh_ped_pet_list = []
+    
     for pos, occupancies in cell_occupancy.items():
         if len(occupancies) > 1:
             occupancies.sort()
@@ -241,25 +260,55 @@ def calculate_metrics(vehicle_paths, pedestrian_paths=None, grid_width=20, grid_
                 t2, a2 = occupancies[k+1]
                 if a1 != a2:
                     pet = t2 - t1
-                    pet_list.append(pet)
-                    
-    min_pet = np.min(pet_list) if pet_list else 10.0
-    avg_pet = np.mean(pet_list) if pet_list else 10.0
-    critical_pet_events = sum(1 for val in pet_list if val <= 2.0)
+                    if a1.startswith("veh_") and a2.startswith("veh_"):
+                        veh_veh_pet_list.append(pet)
+                    elif (a1.startswith("veh_") and a2.startswith("ped_")) or (a1.startswith("ped_") and a2.startswith("veh_")):
+                        veh_ped_pet_list.append(pet)
+                        
+    veh_veh_min_pet = np.min(veh_veh_pet_list) if veh_veh_pet_list else 10.0
+    veh_veh_avg_pet = np.mean(veh_veh_pet_list) if veh_veh_pet_list else 10.0
+    veh_veh_critical_pet_events = sum(1 for val in veh_veh_pet_list if val <= 2.0)
+    
+    veh_ped_min_pet = np.min(veh_ped_pet_list) if veh_ped_pet_list else 10.0
+    veh_ped_avg_pet = np.mean(veh_ped_pet_list) if veh_ped_pet_list else 10.0
+    veh_ped_critical_pet_events = sum(1 for val in veh_ped_pet_list if val <= 2.0)
+    
+    all_pets = veh_veh_pet_list + veh_ped_pet_list
+    min_pet = np.min(all_pets) if all_pets else 10.0
+    avg_pet = np.mean(all_pets) if all_pets else 10.0
+    critical_pet_events = sum(1 for val in all_pets if val <= 2.0)
     
     return {
         'avg_travel_time': float(avg_travel_time),
         'avg_waiting_time': float(avg_waiting_time),
         'avg_delay': float(avg_delay),
         'avg_speed': float(avg_speed),
-        'collision_count': int(collision_count),
-        'conflict_count': int(conflict_count),
-        'near_miss_count': int(near_miss_count),
+        'veh_veh_collision_count': int(veh_veh_collision_count),
+        'veh_ped_collision_count': int(veh_ped_collision_count),
+        'collision_count': int(veh_veh_collision_count + veh_ped_collision_count),
+        'veh_veh_conflict_count': int(veh_veh_conflict_count),
+        'veh_ped_conflict_count': int(veh_ped_conflict_count),
+        'conflict_count': int(veh_veh_conflict_count + veh_ped_conflict_count),
+        'veh_veh_near_miss_count': int(veh_veh_near_miss_count),
+        'veh_ped_near_miss_count': int(veh_ped_near_miss_count),
+        'near_miss_count': int(veh_veh_near_miss_count + veh_ped_near_miss_count),
+        'veh_veh_min_ttc': float(veh_veh_min_ttc),
+        'veh_veh_avg_ttc': float(veh_veh_avg_ttc),
+        'veh_ped_min_ttc': float(veh_ped_min_ttc),
+        'veh_ped_avg_ttc': float(veh_ped_avg_ttc),
         'min_ttc': float(min_ttc),
         'avg_ttc': float(avg_ttc),
+        'veh_veh_min_pet': float(veh_veh_min_pet),
+        'veh_veh_avg_pet': float(veh_veh_avg_pet),
+        'veh_ped_min_pet': float(veh_ped_min_pet),
+        'veh_ped_avg_pet': float(veh_ped_avg_pet),
         'min_pet': float(min_pet),
         'avg_pet': float(avg_pet),
+        'veh_veh_critical_ttc_events': int(veh_veh_critical_ttc_events),
+        'veh_ped_critical_ttc_events': int(veh_ped_critical_ttc_events),
         'critical_ttc_events': int(critical_ttc_events),
+        'veh_veh_critical_pet_events': int(veh_veh_critical_pet_events),
+        'veh_ped_critical_pet_events': int(veh_ped_critical_pet_events),
         'critical_pet_events': int(critical_pet_events),
         'max_queue_length': int(max_queue_length),
         'throughput': float(throughput)

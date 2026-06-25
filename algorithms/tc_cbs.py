@@ -98,6 +98,22 @@ class TCCBSTPlanner:
             transformed_costs.append(g_f)
         return transformed_costs
 
+    def count_inter_team_conflicts(self, paths):
+        conflicts = find_all_conflicts(paths)
+        count = 0
+        agent_team = {}
+        for team in self.teams:
+            for a in team['agents']:
+                agent_team[a] = team['id']
+                
+        for c in conflicts:
+            a1, a2 = c[1], c[2]
+            t1 = agent_team.get(a1)
+            t2 = agent_team.get(a2)
+            if t1 is not None and t2 is not None and t1 != t2:
+                count += 1
+        return count
+
     def plan(self, max_nodes=1000, time_limit=60, dynamic_obstacles=None):
         start_time = time.time()
         # Open list is a heap of nodes
@@ -119,6 +135,7 @@ class TCCBSTPlanner:
         root.cost_vector = self.compute_team_costs(root.paths)
         root.transformed_cost_vector = self.compute_transformed_costs(root.cost_vector, root.paths)
         root.num_conflicts = len(find_all_conflicts(root.paths))
+        root.num_inter_team_conflicts = self.count_inter_team_conflicts(root.paths)
         
         heapq.heappush(open_list, root)
         
@@ -201,6 +218,7 @@ class TCCBSTPlanner:
                     child.cost_vector = self.compute_team_costs(child.paths)
                     child.transformed_cost_vector = self.compute_transformed_costs(child.cost_vector, child.paths)
                     child.num_conflicts = len(find_all_conflicts(child.paths))
+                    child.num_inter_team_conflicts = self.count_inter_team_conflicts(child.paths)
                     
                     # Dominance check before pushing to open
                     child_dominated = False

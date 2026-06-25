@@ -95,26 +95,54 @@ class TCICBSPlanner:
         else:
             return 'non-cardinal', (path1, path2)
 
+    def get_agent_team(self, agent_id):
+        for team in self.teams:
+            if agent_id in team['agents']:
+                return team['id']
+        return None
+
+    def is_inter_team_conflict(self, conflict):
+        # conflict is ('vertex', a1, a2, pos, t) or ('edge', a1, a2, u, v, t)
+        a1, a2 = conflict[1], conflict[2]
+        return self.get_agent_team(a1) != self.get_agent_team(a2)
+
+    def count_inter_team_conflicts(self, paths):
+        conflicts = find_all_conflicts(paths)
+        count = 0
+        agent_team = {}
+        for team in self.teams:
+            for a in team['agents']:
+                agent_team[a] = team['id']
+                
+        for c in conflicts:
+            a1, a2 = c[1], c[2]
+            t1 = agent_team.get(a1)
+            t2 = agent_team.get(a2)
+            if t1 is not None and t2 is not None and t1 != t2:
+                count += 1
+        return count
+
     def select_best_conflict(self, node, conflicts, dynamic_obstacles=None):
-        cardinal_conflicts = []
-        semi_conflicts = []
-        non_conflicts = []
+        first_semi = None
+        first_non = None
         
+        # Early-exit: classify conflicts in order. Stop and return immediately if cardinal is found.
+        # This significantly reduces low-level A* calls.
         for conflict in conflicts[:15]:
             cardinality, replanned_paths = self.classify_conflict(node, conflict, dynamic_obstacles)
             if cardinality == 'cardinal':
-                cardinal_conflicts.append((conflict, replanned_paths))
+                return 'cardinal', conflict, replanned_paths
             elif cardinality == 'semi-cardinal':
-                semi_conflicts.append((conflict, replanned_paths))
-            else:
-                non_conflicts.append((conflict, replanned_paths))
-                
-        if cardinal_conflicts:
-            return 'cardinal', cardinal_conflicts[0][0], cardinal_conflicts[0][1]
-        elif semi_conflicts:
-            return 'semi-cardinal', semi_conflicts[0][0], semi_conflicts[0][1]
-        elif non_conflicts:
-            return 'non-cardinal', non_conflicts[0][0], non_conflicts[0][1]
+                if first_semi is None:
+                    first_semi = (conflict, replanned_paths)
+            elif cardinality == 'non-cardinal':
+                if first_non is None:
+                    first_non = (conflict, replanned_paths)
+                    
+        if first_semi is not None:
+            return 'semi-cardinal', first_semi[0], first_semi[1]
+        elif first_non is not None:
+            return 'non-cardinal', first_non[0], first_non[1]
             
         if conflicts:
             return 'unknown', conflicts[0], (None, None)
@@ -139,6 +167,7 @@ class TCICBSPlanner:
         root.cost_vector = self.compute_team_costs(root.paths)
         root.transformed_cost_vector = self.compute_transformed_costs(root.cost_vector, root.paths)
         root.num_conflicts = len(find_all_conflicts(root.paths))
+        root.num_inter_team_conflicts = self.count_inter_team_conflicts(root.paths)
         
         heapq.heappush(open_list, root)
         nodes_expanded = 0
@@ -176,6 +205,9 @@ class TCICBSPlanner:
                     C = C_new
                 continue
                 
+            # Dynamic conflict ordering: prioritize inter-team conflicts over intra-team conflicts
+            conflicts.sort(key=lambda c: 0 if self.is_inter_team_conflict(c) else 1)
+            
             # Classify and select best conflict
             cardinality, conflict, (path1, path2) = self.select_best_conflict(curr_node, conflicts, dynamic_obstacles)
             
@@ -211,6 +243,7 @@ class TCICBSPlanner:
                                 curr_node.cost_vector = self.compute_team_costs(curr_node.paths)
                                 curr_node.transformed_cost_vector = self.compute_transformed_costs(curr_node.cost_vector, curr_node.paths)
                                 curr_node.num_conflicts = len(new_conflicts)
+                                curr_node.num_inter_team_conflicts = self.count_inter_team_conflicts(curr_node.paths)
                                 
                                 if agent_id not in curr_node.constraints:
                                     curr_node.constraints[agent_id] = set()
@@ -252,6 +285,7 @@ class TCICBSPlanner:
                     child.cost_vector = self.compute_team_costs(child.paths)
                     child.transformed_cost_vector = self.compute_transformed_costs(child.cost_vector, child.paths)
                     child.num_conflicts = len(find_all_conflicts(child.paths))
+                    child.num_inter_team_conflicts = self.count_inter_team_conflicts(child.paths)
                     
                     # Dominance check
                     child_dominated = False

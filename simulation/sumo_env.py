@@ -371,3 +371,32 @@ class SumoEnvironment:
             traci.person.moveToXY(ped_id, "", X, Y, angle=0, keepRoute=2)
         except traci.exceptions.TraCIException:
             pass
+
+    def spawn_background_vehicles(self, density="medium", step=0, seed=None):
+        """Dynamically spawns background traffic at boundary nodes based on the density setting."""
+        bg_traffic_config = self.config.get('simulation', {}).get('background_traffic', {})
+        if not bg_traffic_config.get('enabled', True):
+            return
+            
+        import random
+        # Ensure unique but reproducible spawns at each step
+        if seed is not None:
+            random.seed(seed + step)
+            
+        probs = bg_traffic_config.get('probabilities', {
+            'low': 0.05,
+            'medium': 0.15,
+            'high': 0.30
+        })
+        
+        prob = probs.get(density, 0.15)
+        
+        # Check if we spawn a vehicle in this step
+        if random.random() < prob:
+            routes = ["r_NS", "r_SN", "r_EW", "r_WE", "r_NW", "r_SE"]
+            route_id = random.choice(routes)
+            veh_id = f"bg_{step}_{random.randint(0, 1000)}"
+            try:
+                traci.vehicle.add(veh_id, route_id, typeID="car")
+            except traci.exceptions.TraCIException:
+                pass

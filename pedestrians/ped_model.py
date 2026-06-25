@@ -3,11 +3,11 @@ class PedestrianModel:
         self.grid_width = grid_width
         self.grid_height = grid_height
         
-    def generate_pedestrians(self, density="medium", sim_steps=50):
-        # Generates pedestrian paths based on density
-        # Returns a list of dicts: {'id': str, 'path': list of (x,y), 'start_time': int}
-        pedestrians = []
-        
+    def generate_pedestrians(self, density="medium", sim_steps=50, seed=None):
+        import random
+        if seed is not None:
+            random.seed(seed)
+            
         # Define crosswalks
         # 1. North Crosswalk: y=14, x from 7 to 12
         north_eastbound = [(x, 14) for x in range(7, 13)]
@@ -34,21 +34,22 @@ class PedestrianModel:
         
         # Determine number of pedestrians and spacing based on density
         if density == "low":
-            # 2 pedestrians
-            spawn_times = [2, 6]
-            paths_to_use = [0, 2] # north_eastbound, south_eastbound
+            count = random.randint(1, 3) if seed is not None else 2
+            spawn_times = sorted([random.randint(1, 15) for _ in range(count)]) if seed is not None else [2, 6]
+            paths_to_use = [random.randint(0, 7) for _ in range(count)] if seed is not None else [0, 2]
         elif density == "medium":
-            # 6 pedestrians
-            spawn_times = [1, 3, 5, 7, 9, 11]
-            paths_to_use = [0, 1, 2, 3, 4, 6]
+            count = random.randint(4, 7) if seed is not None else 6
+            spawn_times = sorted([random.randint(0, 20) for _ in range(count)]) if seed is not None else [1, 3, 5, 7, 9, 11]
+            paths_to_use = [random.randint(0, 7) for _ in range(count)] if seed is not None else [0, 1, 2, 3, 4, 6]
         elif density == "high":
-            # 12 pedestrians
-            spawn_times = [0, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17]
-            paths_to_use = [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3]
+            count = random.randint(8, 14) if seed is not None else 12
+            spawn_times = sorted([random.randint(0, 25) for _ in range(count)]) if seed is not None else [0, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17]
+            paths_to_use = [random.randint(0, 7) for _ in range(count)] if seed is not None else [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3]
         else:
             spawn_times = []
             paths_to_use = []
             
+        pedestrians = []
         for idx, (t_start, path_idx) in enumerate(zip(spawn_times, paths_to_use)):
             base_path = crosswalks[path_idx]
             ped_id = f"ped_{idx}"

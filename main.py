@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import pandas as pd
 from evaluation.experiment_runner import ExperimentRunner
 from simulation.sumo_env import SumoEnvironment
@@ -76,6 +77,9 @@ def run_sumo_demo(gui=False):
                     pos = path[t]
                     env.move_pedestrian(ped['id'], pos[0], pos[1])
                     
+            # Spawn background traffic dynamically (Objective 3)
+            env.spawn_background_vehicles(density=ped_density, step=t, seed=42)
+            
             env.step()
             
         if gui:
@@ -154,5 +158,4 @@ def main():
     print("="*50)
 
 if __name__ == "__main__":
-    import time
     main()
