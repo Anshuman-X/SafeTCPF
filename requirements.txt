@@ -1,0 +1,8 @@
+traci
+numpy
+pandas
+matplotlib
+networkx
+scipy
+reportlab
+pyyaml

@@ -1,0 +1,98 @@
+# SafeTCPF Configuration
+
+simulation:
+  grid_width: 20
+  grid_height: 24
+  # Road lanes coordinates:
+  # Vertical road (columns): 8, 9 (Southbound), 10, 11 (Northbound)
+  # Horizontal road (rows): 10, 11 (Eastbound), 12, 13 (Westbound)
+  vertical_lanes: [8, 9, 10, 11]
+  horizontal_lanes: [10, 11, 12, 13]
+  
+  # Pedestrian crossing coordinates
+  # Pedestrians cross the road at the boundaries of the intersection:
+  # North crosswalk: y = 14, x in [8..11]
+  # South crosswalk: y = 9, x in [8..11]
+  # East crosswalk: x = 12, y in [10..13]
+  # West crosswalk: x = 7, y in [10..13]
+  pedestrian_crosswalks:
+    north: {y: 14, x_range: [8, 11]}
+    south: {y: 9, x_range: [8, 11]}
+    east: {x: 12, y_range: [10, 13]}
+    west: {x: 7, y_range: [10, 13]}
+
+planning:
+  epsilon: 0.1
+  time_limit: 300 # seconds
+  max_nodes: 5000
+
+# Scenarios for experiments
+scenarios:
+  - name: "Motorcade"
+    teams:
+      - id: 1
+        name: "Motorcade"
+        agents: [0, 1, 2] # Vehicles 0, 1, 2 form a motorcade
+        objective: "min-sum"
+      - id: 2
+        name: "Public"
+        agents: [3, 4, 5, 6] # Other vehicles
+        objective: "min-sum"
+    agents_def:
+      # Start and goals (x, y)
+      # Motorcade: entering from East, going West
+      - start: [19, 12]
+        goal: [0, 12]
+      - start: [19, 13]
+        goal: [0, 13]
+      - start: [18, 12]
+        goal: [1, 12]
+      # Public: entering from North (going South) and South (going North)
+      - start: [8, 23]
+        goal: [8, 0]
+      - start: [9, 23]
+        goal: [9, 0]
+      - start: [10, 0]
+        goal: [10, 23]
+      - start: [11, 0]
+        goal: [11, 23]
+
+  - name: "FourTeams"
+    teams:
+      - id: 1
+        name: "Northbound"
+        agents: [0, 1]
+        objective: "min-sum"
+      - id: 2
+        name: "Southbound"
+        agents: [2, 3]
+        objective: "min-sum"
+      - id: 3
+        name: "Eastbound"
+        agents: [4, 5]
+        objective: "min-sum"
+      - id: 4
+        name: "Westbound"
+        agents: [6, 7]
+        objective: "min-sum"
+    agents_def:
+      # Northbound
+      - start: [10, 0]
+        goal: [10, 23]
+      - start: [11, 0]
+        goal: [11, 23]
+      # Southbound
+      - start: [8, 23]
+        goal: [8, 0]
+      - start: [9, 23]
+        goal: [9, 0]
+      # Eastbound
+      - start: [0, 10]
+        goal: [19, 10]
+      - start: [0, 11]
+        goal: [19, 11]
+      # Westbound
+      - start: [19, 12]
+        goal: [0, 12]
+      - start: [19, 13]
+        goal: [0, 13]

@@ -1,0 +1,31 @@
+<routes>
+    <vType id="car" vClass="passenger" length="5.0" width="2.0" maxSpeed="13.89" accel="2.6" decel="4.5" sigma="0.5"/>
+    <vType id="ped" vClass="pedestrian" length="0.4" width="0.5" maxSpeed="1.5"/>
+
+    <!-- Named routes (used by TraCI spawning and standalone vehicles) -->
+    <route id="r_dummy" edges="N_to_C C_to_S"/>
+    <route id="r_NS"    edges="N_to_C C_to_S"/>
+    <route id="r_SN"    edges="S_to_C C_to_N"/>
+    <route id="r_EW"    edges="E_to_C C_to_W"/>
+    <route id="r_WE"    edges="W_to_C C_to_E"/>
+    <route id="r_NW"    edges="N_to_C C_to_W"/>
+    <route id="r_SE"    edges="S_to_C C_to_E"/>
+
+    <!-- Concrete vehicles sorted by depart time (SUMO requirement) -->
+    <vehicle id="ns_0" type="car" route="r_NS" depart="0"  departLane="best" departSpeed="max"/>
+    <vehicle id="sn_0" type="car" route="r_SN" depart="0"  departLane="best" departSpeed="max"/>
+    <vehicle id="ew_0" type="car" route="r_EW" depart="0"  departLane="best" departSpeed="max"/>
+    <vehicle id="we_0" type="car" route="r_WE" depart="0"  departLane="best" departSpeed="max"/>
+    <vehicle id="nw_0" type="car" route="r_NW" depart="2"  departLane="best" departSpeed="max"/>
+    <vehicle id="se_0" type="car" route="r_SE" depart="2"  departLane="best" departSpeed="max"/>
+    <vehicle id="ew_1" type="car" route="r_EW" depart="5"  departLane="best" departSpeed="max"/>
+    <vehicle id="ns_1" type="car" route="r_NS" depart="10" departLane="best" departSpeed="max"/>
+    <vehicle id="sn_1" type="car" route="r_SN" depart="10" departLane="best" departSpeed="max"/>
+    <vehicle id="ew_2" type="car" route="r_EW" depart="10" departLane="best" departSpeed="max"/>
+    <vehicle id="we_1" type="car" route="r_WE" depart="10" departLane="best" departSpeed="max"/>
+    <vehicle id="nw_1" type="car" route="r_NW" depart="15" departLane="best" departSpeed="max"/>
+    <vehicle id="se_1" type="car" route="r_SE" depart="15" departLane="best" departSpeed="max"/>
+    <vehicle id="ns_2" type="car" route="r_NS" depart="20" departLane="best" departSpeed="max"/>
+    <vehicle id="sn_2" type="car" route="r_SN" depart="20" departLane="best" departSpeed="max"/>
+    <vehicle id="we_2" type="car" route="r_WE" depart="20" departLane="best" departSpeed="max"/>
+</routes>

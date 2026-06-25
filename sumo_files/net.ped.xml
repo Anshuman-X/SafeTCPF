@@ -1,0 +1,21 @@
+<routes>
+    <!-- Pedestrians crossing the intersection via sidewalks -->
+    <person id="ped_ns_0" depart="2" type="ped">
+        <walk from="N_to_C" to="C_to_S"/>
+    </person>
+    <person id="ped_sn_0" depart="4" type="ped">
+        <walk from="S_to_C" to="C_to_N"/>
+    </person>
+    <person id="ped_ew_0" depart="6" type="ped">
+        <walk from="E_to_C" to="C_to_W"/>
+    </person>
+    <person id="ped_we_0" depart="8" type="ped">
+        <walk from="W_to_C" to="C_to_E"/>
+    </person>
+    <person id="ped_nw_0" depart="10" type="ped">
+        <walk from="N_to_C" to="C_to_W"/>
+    </person>
+    <person id="ped_se_0" depart="12" type="ped">
+        <walk from="S_to_C" to="C_to_E"/>
+    </person>
+</routes>
