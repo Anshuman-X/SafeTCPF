@@ -1,7 +1,7 @@
 <configuration>
     <input>
         <net-file value="net.net.xml"/>
-        <route-files value="net.rou.xml,net.ped.xml"/>
+        <route-files value="active.rou.xml,active.ped.xml"/>
         <gui-settings-file value="view.xml"/>
     </input>
     <time>

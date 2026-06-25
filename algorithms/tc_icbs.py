@@ -100,7 +100,7 @@ class TCICBSPlanner:
         semi_conflicts = []
         non_conflicts = []
         
-        for conflict in conflicts[:5]:
+        for conflict in conflicts[:15]:
             cardinality, replanned_paths = self.classify_conflict(node, conflict, dynamic_obstacles)
             if cardinality == 'cardinal':
                 cardinal_conflicts.append((conflict, replanned_paths))
@@ -138,6 +138,7 @@ class TCICBSPlanner:
             
         root.cost_vector = self.compute_team_costs(root.paths)
         root.transformed_cost_vector = self.compute_transformed_costs(root.cost_vector, root.paths)
+        root.num_conflicts = len(find_all_conflicts(root.paths))
         
         heapq.heappush(open_list, root)
         nodes_expanded = 0
@@ -209,6 +210,7 @@ class TCICBSPlanner:
                                 curr_node.paths[agent_id] = replanned_path
                                 curr_node.cost_vector = self.compute_team_costs(curr_node.paths)
                                 curr_node.transformed_cost_vector = self.compute_transformed_costs(curr_node.cost_vector, curr_node.paths)
+                                curr_node.num_conflicts = len(new_conflicts)
                                 
                                 if agent_id not in curr_node.constraints:
                                     curr_node.constraints[agent_id] = set()
@@ -228,7 +230,7 @@ class TCICBSPlanner:
                 
                 if replanned_path is not None:
                     child.paths[agent_id] = replanned_path
-                else:
+                elif cardinality == 'unknown':
                     start = tuple(self.agents_def[agent_id]['start'])
                     goal = tuple(self.agents_def[agent_id]['goal'])
                     
@@ -243,10 +245,13 @@ class TCICBSPlanner:
                         child.paths[agent_id] = new_path
                     else:
                         child = None
+                else:
+                    child = None
                         
                 if child is not None:
                     child.cost_vector = self.compute_team_costs(child.paths)
                     child.transformed_cost_vector = self.compute_transformed_costs(child.cost_vector, child.paths)
+                    child.num_conflicts = len(find_all_conflicts(child.paths))
                     
                     # Dominance check
                     child_dominated = False

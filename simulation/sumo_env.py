@@ -17,7 +17,7 @@ class SumoEnvironment:
         self.sumo_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sumo_files")
         os.makedirs(self.sumo_dir, exist_ok=True)
         
-        # Paths to SUMO files
+        # Paths to SUMO files (standalone demo)
         self.nod_xml = os.path.join(self.sumo_dir, "net.nod.xml")
         self.edg_xml = os.path.join(self.sumo_dir, "net.edg.xml")
         self.con_xml = os.path.join(self.sumo_dir, "net.con.xml")
@@ -26,12 +26,17 @@ class SumoEnvironment:
         self.sumocfg = os.path.join(self.sumo_dir, "net.sumocfg")
         self.ped_xml = os.path.join(self.sumo_dir, "net.ped.xml")
         
+        # Paths to active files (for TraCI control without pre-defined vehicle/person entities)
+        self.active_rou_xml = os.path.join(self.sumo_dir, "active.rou.xml")
+        self.active_ped_xml = os.path.join(self.sumo_dir, "active.ped.xml")
+        self.active_sumocfg = os.path.join(self.sumo_dir, "active.sumocfg")
+        self.view_xml = os.path.join(self.sumo_dir, "view.xml")
+        
         self.generate_xml_files()
         self.compile_network()
         
     def generate_xml_files(self):
         # 1. Nodes XML
-        # center is at (0,0), and four directions are at 100 meters away
         nodes_content = """<nodes>
     <node id="center" x="0" y="0" type="priority"/>
     <node id="north" x="0" y="100" type="priority"/>
@@ -44,7 +49,6 @@ class SumoEnvironment:
             f.write(nodes_content)
             
         # 2. Edges XML
-        # Each road has 2 lanes, speed limit 13.89 m/s (~50 km/h)
         edges_content = """<edges>
     <edge id="N_to_C" from="north" to="center" numLanes="2" speed="13.89"/>
     <edge id="C_to_S" from="center" to="south" numLanes="2" speed="13.89"/>
@@ -60,7 +64,6 @@ class SumoEnvironment:
             f.write(edges_content)
             
         # 3. Connections XML
-        # Lane 0 is left-turn/straight, Lane 1 is right-turn/straight
         connections_content = """<connections>
     <connection from="N_to_C" to="C_to_S" fromLane="0" toLane="0"/>
     <connection from="N_to_C" to="C_to_W" fromLane="1" toLane="1"/>
@@ -75,76 +78,105 @@ class SumoEnvironment:
         with open(self.con_xml, "w") as f:
             f.write(connections_content)
             
-        # 4. Routes XML  — includes named routes AND concrete vehicle definitions
-        #    so the simulation shows vehicles even when opened standalone in sumo-gui.
-        #    Pedestrian vType width kept at 0.5 (below SUMO stripe-width) to avoid warning.
-        routes_content = """<routes>
-    <vType id="car" vClass="passenger" length="5.0" width="2.0" maxSpeed="13.89" accel="2.6" decel="4.5" sigma="0.5"/>
+        # Common vTypes and Named routes (template used by both standalone and active)
+        vtypes_routes_template = """    <vType id="car" vClass="passenger" length="5.0" width="2.0" maxSpeed="13.89" accel="2.6" decel="4.5" sigma="0.5"/>
     <vType id="ped" vClass="pedestrian" length="0.4" width="0.5" maxSpeed="1.5"/>
 
-    <!-- Named routes (used by TraCI spawning and standalone vehicles) -->
+    <!-- Named routes -->
     <route id="r_dummy" edges="N_to_C C_to_S"/>
     <route id="r_NS"    edges="N_to_C C_to_S"/>
     <route id="r_SN"    edges="S_to_C C_to_N"/>
     <route id="r_EW"    edges="E_to_C C_to_W"/>
     <route id="r_WE"    edges="W_to_C C_to_E"/>
     <route id="r_NW"    edges="N_to_C C_to_W"/>
-    <route id="r_SE"    edges="S_to_C C_to_E"/>
+    <route id="r_SE"    edges="S_to_C C_to_E"/>"""
 
-    <!-- Concrete vehicles sorted by depart time (SUMO requirement) -->
-    <vehicle id="ns_0" type="car" route="r_NS" depart="0"  departLane="best" departSpeed="max"/>
-    <vehicle id="sn_0" type="car" route="r_SN" depart="0"  departLane="best" departSpeed="max"/>
-    <vehicle id="ew_0" type="car" route="r_EW" depart="0"  departLane="best" departSpeed="max"/>
-    <vehicle id="we_0" type="car" route="r_WE" depart="0"  departLane="best" departSpeed="max"/>
-    <vehicle id="nw_0" type="car" route="r_NW" depart="2"  departLane="best" departSpeed="max"/>
-    <vehicle id="se_0" type="car" route="r_SE" depart="2"  departLane="best" departSpeed="max"/>
-    <vehicle id="ew_1" type="car" route="r_EW" depart="5"  departLane="best" departSpeed="max"/>
-    <vehicle id="ns_1" type="car" route="r_NS" depart="10" departLane="best" departSpeed="max"/>
-    <vehicle id="sn_1" type="car" route="r_SN" depart="10" departLane="best" departSpeed="max"/>
-    <vehicle id="ew_2" type="car" route="r_EW" depart="10" departLane="best" departSpeed="max"/>
-    <vehicle id="we_1" type="car" route="r_WE" depart="10" departLane="best" departSpeed="max"/>
-    <vehicle id="nw_1" type="car" route="r_NW" depart="15" departLane="best" departSpeed="max"/>
-    <vehicle id="se_1" type="car" route="r_SE" depart="15" departLane="best" departSpeed="max"/>
-    <vehicle id="ns_2" type="car" route="r_NS" depart="20" departLane="best" departSpeed="max"/>
-    <vehicle id="sn_2" type="car" route="r_SN" depart="20" departLane="best" departSpeed="max"/>
-    <vehicle id="we_2" type="car" route="r_WE" depart="20" departLane="best" departSpeed="max"/>
+        # 4. Standalone Routes XML (contains concrete vehicle definitions for standalone sumo-gui mode)
+        standalone_routes_content = f"""<routes>
+{vtypes_routes_template}
+
+    <!-- Concrete vehicles for standalone demo (sorted by depart time) -->
+    <vehicle id="veh_ns0" type="car" route="r_NS" depart="0.0"/>
+    <vehicle id="veh_sn0" type="car" route="r_SN" depart="0.0"/>
+    <vehicle id="veh_ew0" type="car" route="r_EW" depart="2.0"/>
+    <vehicle id="veh_we0" type="car" route="r_WE" depart="2.0"/>
+    <vehicle id="veh_nw0" type="car" route="r_NW" depart="5.0"/>
+    <vehicle id="veh_se0" type="car" route="r_SE" depart="5.0"/>
+    <vehicle id="veh_ns1" type="car" route="r_NS" depart="10.0"/>
+    <vehicle id="veh_sn1" type="car" route="r_SN" depart="10.0"/>
+    <vehicle id="veh_ew1" type="car" route="r_EW" depart="12.0"/>
+    <vehicle id="veh_we1" type="car" route="r_WE" depart="12.0"/>
+    <vehicle id="veh_nw1" type="car" route="r_NW" depart="15.0"/>
+    <vehicle id="veh_se1" type="car" route="r_SE" depart="15.0"/>
+    <vehicle id="veh_ns2" type="car" route="r_NS" depart="20.0"/>
+    <vehicle id="veh_sn2" type="car" route="r_SN" depart="20.0"/>
+    <vehicle id="veh_ew2" type="car" route="r_EW" depart="22.0"/>
+    <vehicle id="veh_we2" type="car" route="r_WE" depart="22.0"/>
 </routes>
 """
         with open(self.rou_xml, "w") as f:
-            f.write(routes_content)
+            f.write(standalone_routes_content)
 
-        # 5. Pedestrian routes XML — separate file keeps person elements
-        #    sorted by their own depart times (SUMO merges multiple route files).
-        ped_content = """<routes>
-    <!-- Pedestrians crossing the intersection via sidewalks -->
-    <person id="ped_ns_0" depart="2" type="ped">
-        <walk from="N_to_C" to="C_to_S"/>
+        # 5. Standalone Pedestrians XML (contains concrete pedestrian definitions with walk stages)
+        standalone_ped_content = """<routes>
+    <!-- Concrete pedestrians for standalone demo (sorted by depart time) -->
+    <person id="ped_0" depart="0.0" type="ped">
+        <walk edges="N_to_C C_to_S"/>
     </person>
-    <person id="ped_sn_0" depart="4" type="ped">
-        <walk from="S_to_C" to="C_to_N"/>
+    <person id="ped_1" depart="2.0" type="ped">
+        <walk edges="S_to_C C_to_N"/>
     </person>
-    <person id="ped_ew_0" depart="6" type="ped">
-        <walk from="E_to_C" to="C_to_W"/>
+    <person id="ped_2" depart="4.0" type="ped">
+        <walk edges="E_to_C C_to_W"/>
     </person>
-    <person id="ped_we_0" depart="8" type="ped">
-        <walk from="W_to_C" to="C_to_E"/>
+    <person id="ped_3" depart="6.0" type="ped">
+        <walk edges="W_to_C C_to_E"/>
     </person>
-    <person id="ped_nw_0" depart="10" type="ped">
-        <walk from="N_to_C" to="C_to_W"/>
+    <person id="ped_4" depart="8.0" type="ped">
+        <walk edges="N_to_C C_to_E"/>
     </person>
-    <person id="ped_se_0" depart="12" type="ped">
-        <walk from="S_to_C" to="C_to_E"/>
+    <person id="ped_5" depart="10.0" type="ped">
+        <walk edges="S_to_C C_to_W"/>
     </person>
 </routes>
 """
         with open(self.ped_xml, "w") as f:
-            f.write(ped_content)
+            f.write(standalone_ped_content)
 
-        # 6. SUMO Config XML — references both vehicle and pedestrian route files
+        # 6. Active Routes XML (clean version without concrete vehicles, used by TraCI)
+        active_routes_content = f"""<routes>
+{vtypes_routes_template}
+</routes>
+"""
+        with open(self.active_rou_xml, "w") as f:
+            f.write(active_routes_content)
+
+        # 7. Active Pedestrians XML (clean version without concrete pedestrians, used by TraCI)
+        active_ped_content = """<routes>
+    <!-- Pedestrians routing headers only -->
+</routes>
+"""
+        with open(self.active_ped_xml, "w") as f:
+            f.write(active_ped_content)
+
+        # 8. GUI View Settings XML (makes vehicles and pedestrians highly visible and beautiful)
+        view_content = """<viewsettings>
+    <viewport zoom="400" x="100" y="100"/>
+    <delay value="150"/>
+    <scheme name="real world"/>
+    <persons personMode="0" personSize="2.2" personColor="yellow"/>
+    <vehicles vehicleMode="0" vehicleSize="1.3"/>
+</viewsettings>
+"""
+        with open(self.view_xml, "w") as f:
+            f.write(view_content)
+
+        # 9. Standalone SUMO Config
         sumocfg_content = f"""<configuration>
     <input>
         <net-file value="net.net.xml"/>
         <route-files value="net.rou.xml,net.ped.xml"/>
+        <gui-settings-file value="view.xml"/>
     </input>
     <time>
         <begin value="0"/>
@@ -155,6 +187,23 @@ class SumoEnvironment:
 """
         with open(self.sumocfg, "w") as f:
             f.write(sumocfg_content)
+
+        # 10. Active SUMO Config (used by TraCI)
+        active_sumocfg_content = f"""<configuration>
+    <input>
+        <net-file value="net.net.xml"/>
+        <route-files value="active.rou.xml,active.ped.xml"/>
+        <gui-settings-file value="view.xml"/>
+    </input>
+    <time>
+        <begin value="0"/>
+        <end value="1000"/>
+        <step-length value="1.0"/>
+    </time>
+</configuration>
+"""
+        with open(self.active_sumocfg, "w") as f:
+            f.write(active_sumocfg_content)
 
     def compile_network(self):
         # Compile network using netconvert
@@ -245,7 +294,7 @@ class SumoEnvironment:
     def start_simulation(self, gui=False):
         # Choose sumo binary
         sumo_binary = "sumo-gui" if gui else "sumo"
-        cmd = [sumo_binary, "-c", self.sumocfg, "--no-warnings", "--step-length", "1.0"]
+        cmd = [sumo_binary, "-c", self.active_sumocfg, "--no-warnings", "--step-length", "1.0"]
         if gui:
             # Start simulation automatically and add 500ms delay per step.
             # Do NOT add --quit-on-end so the GUI remains open for manual closing.
@@ -261,13 +310,26 @@ class SumoEnvironment:
         except Exception:
             pass
             
+    def get_route_id(self, x, y):
+        """Map starting grid positions to correct named routes."""
+        if x in [8, 9]:
+            return "r_NS"
+        elif x in [10, 11]:
+            return "r_SN"
+        elif y in [10, 11]:
+            return "r_WE"
+        elif y in [12, 13]:
+            return "r_EW"
+        return "r_dummy"
+
     def spawn_vehicle(self, veh_id, x, y):
         """Spawn a vehicle at the given grid position via TraCI."""
         X, Y = self.grid_to_sumo(x, y)
         edge_id = self.get_edge_id(x, y)
         lane_idx = self.get_lane_index(x, y)
+        route_id = self.get_route_id(x, y)
         try:
-            traci.vehicle.add(veh_id, "r_dummy", typeID="car")
+            traci.vehicle.add(veh_id, route_id, typeID="car")
             traci.vehicle.moveToXY(veh_id, edge_id, lane_idx, X, Y, angle=0, keepRoute=2)
         except traci.exceptions.TraCIException as e:
             print(f"  Warning: Could not spawn vehicle {veh_id}: {e}")
@@ -305,8 +367,7 @@ class SumoEnvironment:
         
     def move_pedestrian(self, ped_id, x, y):
         X, Y = self.grid_to_sumo(x, y)
-        edge_id = self.get_edge_id(x, y)
         try:
-            traci.person.moveToXY(ped_id, edge_id, X, Y, angle=0, keepRoute=2)
+            traci.person.moveToXY(ped_id, "", X, Y, angle=0, keepRoute=2)
         except traci.exceptions.TraCIException:
             pass

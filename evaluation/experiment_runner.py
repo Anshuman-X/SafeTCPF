@@ -88,10 +88,15 @@ class ExperimentRunner:
                         'avg_speed': 0.0,
                         'collision_count': 0,
                         'conflict_count': 0,
-                        'min_ttc': 0.0,
-                        'avg_ttc': 0.0,
-                        'min_pet': 0.0,
-                        'avg_pet': 0.0
+                        'near_miss_count': 0,
+                        'min_ttc': 10.0,
+                        'avg_ttc': 10.0,
+                        'min_pet': 10.0,
+                        'avg_pet': 10.0,
+                        'critical_ttc_events': 0,
+                        'critical_pet_events': 0,
+                        'max_queue_length': 0,
+                        'throughput': 0.0
                     }
                     nodes_expanded = 0
                     
@@ -121,7 +126,33 @@ class ExperimentRunner:
         # Save to CSV
         df = pd.DataFrame(all_results)
         df.to_csv(os.path.join(self.results_dir, "experiment_results.csv"), index=False)
-        print("Experiments complete. Saved to results/experiment_results.csv")
+        
+        # Save individual CSV files
+        df_ttc = df[['scenario', 'algorithm', 'pedestrian_density', 'min_ttc', 'avg_ttc', 'critical_ttc_events']]
+        df_ttc.to_csv(os.path.join(self.results_dir, "ttc.csv"), index=False)
+        
+        df_pet = df[['scenario', 'algorithm', 'pedestrian_density', 'min_pet', 'avg_pet', 'critical_pet_events']]
+        df_pet.to_csv(os.path.join(self.results_dir, "pet.csv"), index=False)
+        
+        df_conflict = df[['scenario', 'algorithm', 'pedestrian_density', 'conflict_count', 'near_miss_count', 'collision_count']]
+        df_conflict.to_csv(os.path.join(self.results_dir, "conflict_count.csv"), index=False)
+        
+        df_travel = df[['scenario', 'algorithm', 'pedestrian_density', 'avg_travel_time', 'avg_delay']]
+        df_travel.to_csv(os.path.join(self.results_dir, "travel_time.csv"), index=False)
+        
+        df_waiting = df[['scenario', 'algorithm', 'pedestrian_density', 'avg_waiting_time']]
+        df_waiting.to_csv(os.path.join(self.results_dir, "waiting_time.csv"), index=False)
+        
+        df_throughput = df[['scenario', 'algorithm', 'pedestrian_density', 'throughput']]
+        df_throughput.to_csv(os.path.join(self.results_dir, "throughput.csv"), index=False)
+        
+        df_runtime = df[['scenario', 'algorithm', 'pedestrian_density', 'runtime_s', 'memory_usage_mb', 'search_nodes']]
+        df_runtime.to_csv(os.path.join(self.results_dir, "runtime.csv"), index=False)
+        
+        df_summary = df[['scenario', 'algorithm', 'pedestrian_density', 'success_rate', 'runtime_s', 'search_nodes', 'avg_travel_time', 'conflict_count', 'avg_ttc', 'avg_pet']]
+        df_summary.to_csv(os.path.join(self.results_dir, "summary.csv"), index=False)
+        
+        print("Experiments complete. Saved to results/experiment_results.csv and individual CSV files.")
         return df
 
     def generate_visualizations(self, df):
@@ -130,21 +161,18 @@ class ExperimentRunner:
         
         # Scenarios list
         scenarios = df['scenario'].unique()
+        densities = ["low", "medium", "high"]
+        x = np.arange(len(densities))
+        width = 0.35
         
+        # 1. Generate legacy combined plots for PDF report compatibility
         for scen in scenarios:
             scen_df = df[df['scenario'] == scen]
             
-            # 1. Travel & Waiting Time Plot
+            # Legacy Efficiency
             fig, ax = plt.subplots(1, 2, figsize=(12, 5))
-            
-            densities = ["low", "medium", "high"]
-            x = np.arange(len(densities))
-            width = 0.35
-            
-            # Travel Time
             tt_cbs = [scen_df[(scen_df['algorithm'] == 'TC-CBS-t') & (scen_df['pedestrian_density'] == d)]['avg_travel_time'].values[0] for d in densities]
             tt_icbs = [scen_df[(scen_df['algorithm'] == 'TC-ICBS') & (scen_df['pedestrian_density'] == d)]['avg_travel_time'].values[0] for d in densities]
-            
             ax[0].bar(x - width/2, tt_cbs, width, label='TC-CBS-t', color='#3498db')
             ax[0].bar(x + width/2, tt_icbs, width, label='TC-ICBS (Proposed)', color='#2ecc71')
             ax[0].set_ylabel('Average Travel Time (steps)')
@@ -154,10 +182,8 @@ class ExperimentRunner:
             ax[0].legend()
             ax[0].grid(True, linestyle='--', alpha=0.5)
             
-            # Waiting Time
             wt_cbs = [scen_df[(scen_df['algorithm'] == 'TC-CBS-t') & (scen_df['pedestrian_density'] == d)]['avg_waiting_time'].values[0] for d in densities]
             wt_icbs = [scen_df[(scen_df['algorithm'] == 'TC-ICBS') & (scen_df['pedestrian_density'] == d)]['avg_waiting_time'].values[0] for d in densities]
-            
             ax[1].bar(x - width/2, wt_cbs, width, label='TC-CBS-t', color='#e74c3c')
             ax[1].bar(x + width/2, wt_icbs, width, label='TC-ICBS (Proposed)', color='#f1c40f')
             ax[1].set_ylabel('Average Waiting Time (steps)')
@@ -172,10 +198,8 @@ class ExperimentRunner:
             plt.savefig(os.path.join(self.vis_dir, f"{scen.lower()}_efficiency.png"), dpi=200)
             plt.close()
             
-            # 2. Safety Metrics (TTC, PET, Conflicts)
+            # Legacy Safety
             fig, ax = plt.subplots(1, 3, figsize=(15, 5))
-            
-            # Conflict Count
             cc_cbs = [scen_df[(scen_df['algorithm'] == 'TC-CBS-t') & (scen_df['pedestrian_density'] == d)]['conflict_count'].values[0] for d in densities]
             cc_icbs = [scen_df[(scen_df['algorithm'] == 'TC-ICBS') & (scen_df['pedestrian_density'] == d)]['conflict_count'].values[0] for d in densities]
             ax[0].bar(x - width/2, cc_cbs, width, label='TC-CBS-t', color='#e67e22')
@@ -187,7 +211,6 @@ class ExperimentRunner:
             ax[0].legend()
             ax[0].grid(True, linestyle='--', alpha=0.5)
             
-            # TTC
             ttc_cbs = [scen_df[(scen_df['algorithm'] == 'TC-CBS-t') & (scen_df['pedestrian_density'] == d)]['avg_ttc'].values[0] for d in densities]
             ttc_icbs = [scen_df[(scen_df['algorithm'] == 'TC-ICBS') & (scen_df['pedestrian_density'] == d)]['avg_ttc'].values[0] for d in densities]
             ax[1].bar(x - width/2, ttc_cbs, width, label='TC-CBS-t', color='#9b59b6')
@@ -199,7 +222,6 @@ class ExperimentRunner:
             ax[1].legend()
             ax[1].grid(True, linestyle='--', alpha=0.5)
             
-            # PET
             pet_cbs = [scen_df[(scen_df['algorithm'] == 'TC-CBS-t') & (scen_df['pedestrian_density'] == d)]['avg_pet'].values[0] for d in densities]
             pet_icbs = [scen_df[(scen_df['algorithm'] == 'TC-ICBS') & (scen_df['pedestrian_density'] == d)]['avg_pet'].values[0] for d in densities]
             ax[2].bar(x - width/2, pet_cbs, width, label='TC-CBS-t', color='#7f8c8d')
@@ -216,10 +238,8 @@ class ExperimentRunner:
             plt.savefig(os.path.join(self.vis_dir, f"{scen.lower()}_safety.png"), dpi=200)
             plt.close()
             
-            # 3. Computational Performance Plot
+            # Legacy Computational
             fig, ax = plt.subplots(1, 2, figsize=(12, 5))
-            
-            # Runtime
             rt_cbs = [scen_df[(scen_df['algorithm'] == 'TC-CBS-t') & (scen_df['pedestrian_density'] == d)]['runtime_s'].values[0] for d in densities]
             rt_icbs = [scen_df[(scen_df['algorithm'] == 'TC-ICBS') & (scen_df['pedestrian_density'] == d)]['runtime_s'].values[0] for d in densities]
             ax[0].plot(densities, rt_cbs, marker='o', linestyle='-', linewidth=2, label='TC-CBS-t', color='#e74c3c')
@@ -229,7 +249,6 @@ class ExperimentRunner:
             ax[0].legend()
             ax[0].grid(True, linestyle='--', alpha=0.5)
             
-            # Search Nodes
             sn_cbs = [scen_df[(scen_df['algorithm'] == 'TC-CBS-t') & (scen_df['pedestrian_density'] == d)]['search_nodes'].values[0] for d in densities]
             sn_icbs = [scen_df[(scen_df['algorithm'] == 'TC-ICBS') & (scen_df['pedestrian_density'] == d)]['search_nodes'].values[0] for d in densities]
             ax[1].plot(densities, sn_cbs, marker='o', linestyle='-', linewidth=2, label='TC-CBS-t', color='#9b59b6')
@@ -242,6 +261,57 @@ class ExperimentRunner:
             plt.suptitle(f"Algorithm Performance - {scen} Scenario")
             plt.tight_layout()
             plt.savefig(os.path.join(self.vis_dir, f"{scen.lower()}_computational.png"), dpi=200)
+            plt.close()
+            
+        # 2. Generate 13 individual metric plots
+        metrics_to_plot = {
+            'Travel Time': ('avg_travel_time', 'Average Travel Time (steps)'),
+            'Waiting Time': ('avg_waiting_time', 'Average Waiting Time (steps)'),
+            'Runtime': ('runtime_s', 'Execution Runtime (seconds)'),
+            'Conflict Count': ('conflict_count', 'Near-Miss Conflict Count'),
+            'Average TTC': ('avg_ttc', 'Average TTC (seconds)'),
+            'Minimum TTC': ('min_ttc', 'Minimum TTC (seconds)'),
+            'Average PET': ('avg_pet', 'Average PET (seconds)'),
+            'Throughput': ('throughput', 'Intersection Throughput (vehs/step)'),
+            'Queue Length': ('max_queue_length', 'Maximum Queue Length (vehs)'),
+            'Average Speed': ('avg_speed', 'Average Speed Ratio'),
+            'Search Nodes': ('search_nodes', 'Search Nodes Expanded'),
+            'Memory Usage': ('memory_usage_mb', 'Memory Usage (MB)'),
+            'Success Rate': ('success_rate', 'Success Rate')
+        }
+        
+        for name, (col, ylabel) in metrics_to_plot.items():
+            fig, axes = plt.subplots(1, len(scenarios), figsize=(12, 5))
+            if len(scenarios) == 1:
+                axes = [axes]
+                
+            for idx, scen in enumerate(scenarios):
+                scen_df = df[df['scenario'] == scen]
+                ax = axes[idx]
+                
+                cbs_vals = []
+                icbs_vals = []
+                for d in densities:
+                    cbs_sub = scen_df[(scen_df['algorithm'] == 'TC-CBS-t') & (scen_df['pedestrian_density'] == d)]
+                    icbs_sub = scen_df[(scen_df['algorithm'] == 'TC-ICBS') & (scen_df['pedestrian_density'] == d)]
+                    
+                    cbs_vals.append(cbs_sub[col].values[0] if not cbs_sub.empty else 0.0)
+                    icbs_vals.append(icbs_sub[col].values[0] if not icbs_sub.empty else 0.0)
+                
+                ax.bar(x - width/2, cbs_vals, width, label='TC-CBS-t', color='#3498db')
+                ax.bar(x + width/2, icbs_vals, width, label='TC-ICBS (Proposed)', color='#2ecc71')
+                ax.set_ylabel(ylabel)
+                ax.set_title(f"{scen} Scenario")
+                ax.set_xticks(x)
+                ax.set_xticklabels(densities)
+                ax.legend()
+                ax.grid(True, linestyle='--', alpha=0.5)
+                
+            plt.suptitle(f"Planners Comparison - {name}")
+            plt.tight_layout()
+            # Save filename in lower case with underscores
+            filename = name.lower().replace(" ", "_")
+            plt.savefig(os.path.join(self.vis_dir, f"{filename}.png"), dpi=200)
             plt.close()
             
         print("Visualizations generated and saved to visualizations/")
@@ -270,6 +340,36 @@ class ExperimentRunner:
                 ])
                 
             t = Table(data, colWidths=[55, 35, 30, 30, 45, 55, 40, 40, 50, 45])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2C3E50')),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0,0), (-1,0), 9),
+                ('BOTTOMPADDING', (0,0), (-1,0), 6),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F2F4F4')]),
+                ('FONTSIZE', (0,1), (-1,-1), 8),
+            ]))
+            return t
+
+        def build_advanced_safety_table(scen):
+            scen_df = df[df['scenario'] == scen]
+            data = [
+                ["Algo", "Ped Density", "Near Misses", "Collisions", "Max Queue", "Throughput", "Crit TTC", "Crit PET"]
+            ]
+            for _, row in scen_df.iterrows():
+                data.append([
+                    row['algorithm'],
+                    row['pedestrian_density'].capitalize(),
+                    str(int(row['near_miss_count'])),
+                    str(int(row['collision_count'])),
+                    str(int(row['max_queue_length'])),
+                    f"{row['throughput']:.3f}",
+                    str(int(row['critical_ttc_events'])),
+                    str(int(row['critical_pet_events']))
+                ])
+            t = Table(data, colWidths=[60, 65, 60, 60, 60, 60, 55, 55])
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2C3E50')),
                 ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
@@ -322,13 +422,19 @@ class ExperimentRunner:
         story.append(Paragraph("We executed experiments on two intersection traffic scenarios: <i>Motorcade</i> (7 agents, 2 teams) and <i>FourTeams</i> (8 agents, 4 teams) across three pedestrian densities (low, medium, high). Both TC-CBS-t and TC-ICBS successfully solved all scenarios, achieving a 100% success rate. The table below compares the metrics for both planners.", body_style))
         
         # Motorcade Table
-        story.append(Paragraph("<b>Table 1: Results for Motorcade Scenario</b>", h1_style))
+        story.append(Paragraph("<b>Table 1a: Results for Motorcade Scenario</b>", h1_style))
         story.append(build_results_table("Motorcade"))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("<b>Table 1b: Advanced Safety Metrics for Motorcade Scenario</b>", h1_style))
+        story.append(build_advanced_safety_table("Motorcade"))
         story.append(Spacer(1, 10))
         
         # FourTeams Table
-        story.append(Paragraph("<b>Table 2: Results for FourTeams Scenario</b>", h1_style))
+        story.append(Paragraph("<b>Table 2a: Results for FourTeams Scenario</b>", h1_style))
         story.append(build_results_table("FourTeams"))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("<b>Table 2b: Advanced Safety Metrics for FourTeams Scenario</b>", h1_style))
+        story.append(build_advanced_safety_table("FourTeams"))
         story.append(Spacer(1, 15))
         
         # Include charts

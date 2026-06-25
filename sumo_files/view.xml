@@ -1,0 +1,7 @@
+<viewsettings>
+    <viewport zoom="400" x="100" y="100"/>
+    <delay value="150"/>
+    <scheme name="real world"/>
+    <persons personMode="0" personSize="2.2" personColor="yellow"/>
+    <vehicles vehicleMode="0" vehicleSize="1.3"/>
+</viewsettings>

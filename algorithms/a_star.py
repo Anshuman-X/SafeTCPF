@@ -9,6 +9,9 @@ class SpaceTimeAStar:
         self.vertical_lanes = [8, 9, 10, 11]
         self.horizontal_lanes = [10, 11, 12, 13]
         
+        # Cache for search results: key -> path list or None
+        self.cache = {}
+        
     def is_on_road(self, x, y):
         # Check if coordinates are on the vertical or horizontal road
         is_vert = (x in self.vertical_lanes) and (0 <= y < self.grid_height)
@@ -91,6 +94,18 @@ class SpaceTimeAStar:
         if dynamic_obstacles is None:
             dynamic_obstacles = set()
             
+        # Check cache
+        cache_key = (
+            start,
+            goal,
+            frozenset(vertex_constraints),
+            frozenset(edge_constraints),
+            frozenset(dynamic_obstacles)
+        )
+        if cache_key in self.cache:
+            cached_path = self.cache[cache_key]
+            return list(cached_path) if cached_path is not None else None
+            
         # Priority Queue elements: (f_score, g_score, x, y, t, parent)
         # parent is a reference to the parent tuple
         start_state = (self.heuristic(start[0], start[1], goal), 0, start[0], start[1], 0, None)
@@ -125,6 +140,7 @@ class SpaceTimeAStar:
                         path.append((curr[2], curr[3]))
                         curr = curr[5]
                     path.reverse()
+                    self.cache[cache_key] = list(path)
                     return path
             
             if t >= max_t:
@@ -151,4 +167,5 @@ class SpaceTimeAStar:
                 
                 heapq.heappush(open_set, (nf, ng, nx, ny, nt, (f, g, x, y, t, parent)))
                 
+        self.cache[cache_key] = None
         return None # No path found

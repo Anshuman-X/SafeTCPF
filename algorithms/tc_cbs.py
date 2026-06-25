@@ -118,6 +118,7 @@ class TCCBSTPlanner:
             
         root.cost_vector = self.compute_team_costs(root.paths)
         root.transformed_cost_vector = self.compute_transformed_costs(root.cost_vector, root.paths)
+        root.num_conflicts = len(find_all_conflicts(root.paths))
         
         heapq.heappush(open_list, root)
         
@@ -199,6 +200,7 @@ class TCCBSTPlanner:
                     child.paths[agent_to_constrain] = new_path
                     child.cost_vector = self.compute_team_costs(child.paths)
                     child.transformed_cost_vector = self.compute_transformed_costs(child.cost_vector, child.paths)
+                    child.num_conflicts = len(find_all_conflicts(child.paths))
                     
                     # Dominance check before pushing to open
                     child_dominated = False
