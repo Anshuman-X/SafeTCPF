@@ -21,11 +21,31 @@ simulation:
     east: {x: 12, y_range: [10, 13]}
     west: {x: 7, y_range: [10, 13]}
 
-  # Realistic Simulation Parameters (Objective 3)
-  seeds: [42, 101, 202, 303, 404]
+  # Realistic Simulation Parameters (Objective 3 & 5)
+  seeds: [42, 101, 202, 303, 404, 505, 606, 707, 808, 909, 1010, 1111, 1212, 1313, 1414, 1515, 1616, 1717, 1818, 1919]
   traffic_densities: ["low", "medium", "high"]
   pedestrian_densities: ["low", "medium", "high"]
+  duration_steps: 150
   
+  # Safety thresholds and configuration (Objective 2 & 14)
+  safety:
+    ttc_threshold_vehicle_vehicle: 1.5
+    ttc_threshold_vehicle_pedestrian: 1.0
+    pet_threshold_vehicle_vehicle: 2.0
+    pet_threshold_vehicle_pedestrian: 2.0
+    near_miss_threshold_vehicle_vehicle: 1.0
+    near_miss_threshold_vehicle_pedestrian: 0.75
+    collision_threshold: 0.1
+
+  # Mixed traffic flow proportions (excluding truck) (Objective 20)
+  mixed_traffic:
+    proportions:
+      car: 0.45
+      motorcycle: 0.30
+      autorickshaw: 0.15
+      bus: 0.05
+      bicycle: 0.05
+
   background_traffic:
     enabled: true
     # Spawning probabilities per step for each density

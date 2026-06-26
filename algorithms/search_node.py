@@ -1,5 +1,5 @@
 class CTNode:
-    def __init__(self, paths=None, constraints=None, cost_vector=None, transformed_cost_vector=None, num_conflicts=0, num_inter_team_conflicts=0):
+    def __init__(self, paths=None, constraints=None, cost_vector=None, transformed_cost_vector=None, num_conflicts=0, num_inter_team_conflicts=0, depth=0):
         # paths: dict mapping agent_id -> list of (x,y)
         self.paths = paths if paths is not None else {}
         # constraints: dict mapping agent_id -> set of constraints
@@ -12,6 +12,7 @@ class CTNode:
         self.transformed_cost_vector = transformed_cost_vector if transformed_cost_vector is not None else []
         self.num_conflicts = num_conflicts
         self.num_inter_team_conflicts = num_inter_team_conflicts
+        self.depth = depth
         
     def __lt__(self, other):
         # Lexicographical comparison of transformed cost vectors
@@ -36,6 +37,6 @@ class CTNode:
             cost_vector=list(self.cost_vector),
             transformed_cost_vector=list(self.transformed_cost_vector),
             num_conflicts=self.num_conflicts,
-            num_inter_team_conflicts=self.num_inter_team_conflicts
+            num_inter_team_conflicts=self.num_inter_team_conflicts,
+            depth=self.depth
         )
-

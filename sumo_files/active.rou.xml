@@ -1,5 +1,9 @@
 <routes>
     <vType id="car" vClass="passenger" length="5.0" width="2.0" maxSpeed="13.89" accel="2.6" decel="4.5" sigma="0.5"/>
+    <vType id="motorcycle" vClass="motorcycle" length="2.0" width="0.8" maxSpeed="16.67" accel="4.0" decel="6.0" sigma="0.7"/>
+    <vType id="autorickshaw" vClass="taxi" length="3.2" width="1.4" maxSpeed="10.0" accel="1.5" decel="3.5" sigma="0.6"/>
+    <vType id="bus" vClass="bus" length="12.0" width="2.5" maxSpeed="11.11" accel="1.2" decel="2.5" sigma="0.4"/>
+    <vType id="bicycle" vClass="bicycle" length="1.6" width="0.6" maxSpeed="5.56" accel="1.0" decel="2.0" sigma="0.8"/>
     <vType id="ped" vClass="pedestrian" length="0.4" width="0.5" maxSpeed="1.5"/>
 
     <!-- Named routes -->

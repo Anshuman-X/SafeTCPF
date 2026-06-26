@@ -65,6 +65,7 @@ class TCICBSPlanner:
         
         start1 = tuple(self.agents_def[a1]['start'])
         goal1 = tuple(self.agents_def[a1]['goal'])
+        self.num_replans += 1
         path1 = self.low_level.find_path(start1, goal1, v_constrs1, e_constrs1, dynamic_obstacles)
         cost1 = len(path1) - 1 if path1 else float('inf')
         
@@ -79,6 +80,7 @@ class TCICBSPlanner:
         
         start2 = tuple(self.agents_def[a2]['start'])
         goal2 = tuple(self.agents_def[a2]['goal'])
+        self.num_replans += 1
         path2 = self.low_level.find_path(start2, goal2, v_constrs2, e_constrs2, dynamic_obstacles)
         cost2 = len(path2) - 1 if path2 else float('inf')
         
@@ -153,11 +155,19 @@ class TCICBSPlanner:
         open_list = []
         C = [] # Non-dominated solutions: list of tuples (untransformed_cost, CTNode)
         
+        # Track search metrics (Objective 12)
+        generated_nodes = 1
+        expanded_nodes = 0
+        max_open_list_size = 0
+        max_depth = 0
+        self.num_replans = 0
+        
         # Build root node
         root = CTNode()
         for a in range(self.num_agents):
             start = tuple(self.agents_def[a]['start'])
             goal = tuple(self.agents_def[a]['goal'])
+            self.num_replans += 1
             path = self.low_level.find_path(start, goal, set(), set(), dynamic_obstacles)
             if path is None:
                 return [] # Unsolvable
@@ -170,11 +180,14 @@ class TCICBSPlanner:
         root.num_inter_team_conflicts = self.count_inter_team_conflicts(root.paths)
         
         heapq.heappush(open_list, root)
+        max_open_list_size = max(max_open_list_size, len(open_list))
         nodes_expanded = 0
         
         while open_list and (time.time() - start_time < time_limit) and (nodes_expanded < max_nodes):
             curr_node = heapq.heappop(open_list)
             nodes_expanded += 1
+            expanded_nodes += 1
+            max_depth = max(max_depth, curr_node.depth)
             
             # Dominance check
             is_dominated = False
@@ -259,6 +272,7 @@ class TCICBSPlanner:
             # Branching
             for agent_id, constr, replanned_path in constraints_to_add:
                 child = curr_node.copy()
+                child.depth = curr_node.depth + 1
                 child.constraints[agent_id].add(constr)
                 
                 if replanned_path is not None:
@@ -273,6 +287,7 @@ class TCICBSPlanner:
                         if c[0] == 'vertex': vertex_constrs.add((c[1][0], c[1][1], c[2]))
                         elif c[0] == 'edge': edge_constrs.add((c[1][0], c[1][1], c[2][0], c[2][1], c[3]))
                         
+                    self.num_replans += 1
                     new_path = self.low_level.find_path(start, goal, vertex_constrs, edge_constrs, dynamic_obstacles)
                     if new_path is not None:
                         child.paths[agent_id] = new_path
@@ -282,6 +297,7 @@ class TCICBSPlanner:
                     child = None
                         
                 if child is not None:
+                    generated_nodes += 1
                     child.cost_vector = self.compute_team_costs(child.paths)
                     child.transformed_cost_vector = self.compute_transformed_costs(child.cost_vector, child.paths)
                     child.num_conflicts = len(find_all_conflicts(child.paths))
@@ -295,6 +311,7 @@ class TCICBSPlanner:
                             break
                     if not child_dominated:
                         heapq.heappush(open_list, child)
+                        max_open_list_size = max(max_open_list_size, len(open_list))
                         
         solutions = []
         for _, node in C:
@@ -302,6 +319,11 @@ class TCICBSPlanner:
                 'paths': node.paths,
                 'cost_vector': node.cost_vector,
                 'nodes_expanded': nodes_expanded,
+                'generated_nodes': generated_nodes,
+                'expanded_nodes': expanded_nodes,
+                'max_depth': max_depth,
+                'max_open_list_size': max_open_list_size,
+                'num_replans': self.num_replans,
                 'runtime': time.time() - start_time
             })
         return solutions

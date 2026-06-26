@@ -1,11 +1,14 @@
 import os
 import sys
 import time
+import traceback
 import pandas as pd
+import traci
 from evaluation.experiment_runner import ExperimentRunner
 from simulation.sumo_env import SumoEnvironment
 from pedestrians.ped_model import PedestrianModel
 from algorithms.tc_icbs import TCICBSPlanner
+
 
 def run_sumo_demo(gui=False):
     print("\n--- Running SUMO Simulation Demo ---")
@@ -36,15 +39,21 @@ def run_sumo_demo(gui=False):
         best_sol = solutions[0]
         paths = best_sol['paths']
         
+        # Assign mixed traffic vehicle types (excluding truck) proportionally to active vehicles
+        import random
+        random.seed(42) # Seed for reproducibility in the demo
+        proportions = runner.config['simulation']['mixed_traffic']['proportions']
+        vtypes = list(proportions.keys())
+        weights = list(proportions.values())
+        agent_types = random.choices(vtypes, weights=weights, k=len(agents_def))
+        
         # Run headless or with gui based on parameter.
         env.start_simulation(gui=gui)
         
-        max_t = max(len(p) for p in paths.values())
-        
-        # Spawn all agents initially
+        # Spawn all agents initially with heterogeneous vehicle types
         for a in range(len(agents_def)):
             start_pos = paths[a][0]
-            env.spawn_vehicle(f"veh_{a}", start_pos[0], start_pos[1])
+            env.spawn_vehicle(f"veh_{a}", start_pos[0], start_pos[1], typeID=agent_types[a])
             
         for ped in pedestrians:
             start_pos = ped['path'][0]
@@ -52,8 +61,87 @@ def run_sumo_demo(gui=False):
             
         # Step through time and update positions
         print("Stepping simulation and updating positions via TraCI...")
-        for t in range(max_t):
-            # Move vehicles
+        t = 0
+        last_replan_t = -10 # Cooldown to avoid infinite loop of replans
+        
+        max_t = max(len(p) for p in paths.values())
+        while t < max_t:
+            # 1. Get current background vehicles' positions
+            bg_positions = []
+            try:
+                all_veh_ids = traci.vehicle.getIDList()
+                for veh_id in all_veh_ids:
+                    if veh_id.startswith("bg_"):
+                        pos_sumo = traci.vehicle.getPosition(veh_id)
+                        grid_pos = env.sumo_to_grid(pos_sumo[0], pos_sumo[1])
+                        bg_positions.append(grid_pos)
+            except Exception:
+                pass
+                
+            # 2. Check for conflicts / sensing obstacles to trigger online dynamic replanning
+            detect_conflict = False
+            if t - last_replan_t >= 5: # 5 steps cooldown
+                for a in range(len(agents_def)):
+                    if t < len(paths[a]):
+                        # Check next 5 cells of agent a's path
+                        future_cells = paths[a][t : min(t + 6, len(paths[a]))]
+                        for dt, cell in enumerate(future_cells):
+                            t_check = t + dt
+                            # Check if pedestrian will occupy this cell at t_check
+                            for ped in pedestrians:
+                                if t_check < len(ped['path']) and ped['path'][t_check] == cell:
+                                    detect_conflict = True
+                                    break
+                            if detect_conflict:
+                                break
+                            # Check if background vehicle is currently at this cell
+                            if cell in bg_positions:
+                                detect_conflict = True
+                                break
+                    if detect_conflict:
+                        break
+                        
+            if detect_conflict:
+                print(f"  [Dynamic Replanning] Obstacle detected near agent paths at step {t}. Replanning remaining paths...")
+                # Construct new agent definitions from current position to goal
+                new_agents_def = []
+                for a in range(len(agents_def)):
+                    curr_pos = paths[a][t] if t < len(paths[a]) else paths[a][-1]
+                    new_agents_def.append({
+                        'start': list(curr_pos),
+                        'goal': list(agents_def[a]['goal'])
+                    })
+                
+                # Offset remaining pedestrian trajectories to new relative start time 0
+                new_dynamic_obstacles = set()
+                for ped in pedestrians:
+                    path = ped['path']
+                    for t_future in range(t, len(path)):
+                        new_dynamic_obstacles.add((path[t_future][0], path[t_future][1], t_future - t))
+                        
+                # Add current background vehicles as obstacles at step 0 and 1
+                for bg_pos in bg_positions:
+                    new_dynamic_obstacles.add((bg_pos[0], bg_pos[1], 0))
+                    new_dynamic_obstacles.add((bg_pos[0], bg_pos[1], 1))
+                    
+                # Plan from current state
+                replan_planner = TCICBSPlanner(teams, new_agents_def, epsilon=runner.config['planning']['epsilon'],
+                                               grid_width=env.grid_width, grid_height=env.grid_height)
+                replan_solutions = replan_planner.plan(max_nodes=300, time_limit=10, dynamic_obstacles=new_dynamic_obstacles)
+                
+                if replan_solutions:
+                    new_best_sol = replan_solutions[0]
+                    new_paths = new_best_sol['paths']
+                    for a in range(len(agents_def)):
+                        # Combine path before t with new planned path from t onwards
+                        paths[a] = paths[a][:t] + new_paths[a]
+                    print(f"  [Dynamic Replanning] Successful! Paths updated.")
+                    last_replan_t = t
+                    max_t = max(len(p) for p in paths.values())
+                else:
+                    print(f"  [Dynamic Replanning] Failed to find alternative paths. Continuing with existing paths.")
+            
+            # 3. Move vehicles
             for a in range(len(agents_def)):
                 path = paths[a]
                 if t < len(path):
@@ -70,17 +158,22 @@ def run_sumo_demo(gui=False):
                         elif dy < 0: angle = 180
                     env.move_vehicle(f"veh_{a}", pos[0], pos[1], angle)
                     
-            # Move pedestrians
+            # 4. Move pedestrians
             for ped in pedestrians:
                 path = ped['path']
                 if t < len(path):
                     pos = path[t]
                     env.move_pedestrian(ped['id'], pos[0], pos[1])
                     
-            # Spawn background traffic dynamically (Objective 3)
+            # 5. Spawn background traffic dynamically (Objective 3)
             env.spawn_background_vehicles(density=ped_density, step=t, seed=42)
             
+            # 6. Update overlays in SUMO GUI (colors and POIs)
+            env.update_gui_overlays(paths, pedestrians, t)
+            
+            # 7. Step TraCI
             env.step()
+            t += 1
             
         if gui:
             input("\nSimulation finished. Inspect the SUMO GUI. Press Enter here to close and clean up...")
@@ -88,7 +181,8 @@ def run_sumo_demo(gui=False):
         env.stop_simulation()
         print("SUMO Simulation Demo completed successfully!")
     except Exception as e:
-        print(f"SUMO Demo warning/error (likely SUMO path not in environment): {e}")
+        print(f"SUMO Demo warning/error: {e}")
+        traceback.print_exc()
         print("Continuing project execution...")
 
 def main():

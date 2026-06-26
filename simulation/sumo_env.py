@@ -80,6 +80,10 @@ class SumoEnvironment:
             
         # Common vTypes and Named routes (template used by both standalone and active)
         vtypes_routes_template = """    <vType id="car" vClass="passenger" length="5.0" width="2.0" maxSpeed="13.89" accel="2.6" decel="4.5" sigma="0.5"/>
+    <vType id="motorcycle" vClass="motorcycle" length="2.0" width="0.8" maxSpeed="16.67" accel="4.0" decel="6.0" sigma="0.7"/>
+    <vType id="autorickshaw" vClass="taxi" length="3.2" width="1.4" maxSpeed="10.0" accel="1.5" decel="3.5" sigma="0.6"/>
+    <vType id="bus" vClass="bus" length="12.0" width="2.5" maxSpeed="11.11" accel="1.2" decel="2.5" sigma="0.4"/>
+    <vType id="bicycle" vClass="bicycle" length="1.6" width="0.6" maxSpeed="5.56" accel="1.0" decel="2.0" sigma="0.8"/>
     <vType id="ped" vClass="pedestrian" length="0.4" width="0.5" maxSpeed="1.5"/>
 
     <!-- Named routes -->
@@ -322,14 +326,14 @@ class SumoEnvironment:
             return "r_EW"
         return "r_dummy"
 
-    def spawn_vehicle(self, veh_id, x, y):
+    def spawn_vehicle(self, veh_id, x, y, typeID="car"):
         """Spawn a vehicle at the given grid position via TraCI."""
         X, Y = self.grid_to_sumo(x, y)
         edge_id = self.get_edge_id(x, y)
         lane_idx = self.get_lane_index(x, y)
         route_id = self.get_route_id(x, y)
         try:
-            traci.vehicle.add(veh_id, route_id, typeID="car")
+            traci.vehicle.add(veh_id, route_id, typeID=typeID)
             traci.vehicle.moveToXY(veh_id, edge_id, lane_idx, X, Y, angle=0, keepRoute=2)
         except traci.exceptions.TraCIException as e:
             print(f"  Warning: Could not spawn vehicle {veh_id}: {e}")
@@ -396,7 +400,122 @@ class SumoEnvironment:
             routes = ["r_NS", "r_SN", "r_EW", "r_WE", "r_NW", "r_SE"]
             route_id = random.choice(routes)
             veh_id = f"bg_{step}_{random.randint(0, 1000)}"
+            
+            # Select vehicle type dynamically (heterogeneous mixed traffic) (Objective 20)
+            proportions = self.config.get('simulation', {}).get('mixed_traffic', {}).get('proportions', {
+                'car': 0.45,
+                'motorcycle': 0.30,
+                'autorickshaw': 0.15,
+                'bus': 0.05,
+                'bicycle': 0.05
+            })
+            vtypes = list(proportions.keys())
+            weights = list(proportions.values())
+            type_id = random.choices(vtypes, weights=weights)[0]
+            
             try:
-                traci.vehicle.add(veh_id, route_id, typeID="car")
+                traci.vehicle.add(veh_id, route_id, typeID=type_id)
             except traci.exceptions.TraCIException:
                 pass
+
+    def update_gui_overlays(self, active_veh_paths, pedestrians, step_idx):
+        """Updates colors in SUMO GUI based on risk coloring and draws active planned path POIs (Objective 20)."""
+        import numpy as np
+        
+        # Clean up POIs from previous steps
+        try:
+            poi_ids = traci.poi.getIDList()
+            for pid in poi_ids:
+                if pid.startswith("poi_"):
+                    traci.poi.remove(pid)
+        except Exception:
+            pass
+            
+        # Draw remaining path POIs for active planning vehicles
+        for a, path in active_veh_paths.items():
+            veh_id = f"veh_{a}"
+            try:
+                if veh_id in traci.vehicle.getIDList():
+                    poi_color = (0, 191, 255, 255) # cyan
+                    
+                    # Draw remaining steps in path (only up to next 10 cells to avoid overlay clutter)
+                    for t_idx in range(step_idx, min(len(path), step_idx + 10)):
+                        pos = path[t_idx]
+                        X, Y = self.grid_to_sumo(pos[0], pos[1])
+                        poi_id = f"poi_{veh_id}_{t_idx}"
+                        traci.poi.add(poi_id, X, Y, poi_color, poiType="path", layer=1)
+            except Exception:
+                pass
+
+        # Color vehicles according to real-time risk (TTC to other vehicles/pedestrians)
+        try:
+            all_veh_ids = traci.vehicle.getIDList()
+        except Exception:
+            return
+            
+        for veh_id in all_veh_ids:
+            try:
+                p1 = np.array(traci.vehicle.getPosition(veh_id))
+                speed1 = traci.vehicle.getSpeed(veh_id)
+                angle = traci.vehicle.getAngle(veh_id)
+                # Convert angle to vector (0 is North, 90 is East)
+                rad = np.deg2rad(90 - angle)
+                v1 = np.array([np.cos(rad), np.sin(rad)]) * speed1
+                
+                min_ttc = float('inf')
+                
+                # Check TTC with other vehicles
+                for other_id in all_veh_ids:
+                    if other_id == veh_id:
+                        continue
+                    p2 = np.array(traci.vehicle.getPosition(other_id))
+                    speed2 = traci.vehicle.getSpeed(other_id)
+                    angle2 = traci.vehicle.getAngle(other_id)
+                    rad2 = np.deg2rad(90 - angle2)
+                    v2 = np.array([np.cos(rad2), np.sin(rad2)]) * speed2
+                    
+                    from metrics.safety_metrics import calculate_pair_ttc
+                    ttc = calculate_pair_ttc(p1, v1, p2, v2, d=1.5)
+                    if ttc >= 0 and ttc < min_ttc:
+                        min_ttc = ttc
+                        
+                # Check TTC with pedestrians
+                try:
+                    ped_ids = traci.person.getIDList()
+                except Exception:
+                    ped_ids = []
+                    
+                for ped_id in ped_ids:
+                    p2 = np.array(traci.person.getPosition(ped_id))
+                    speed2 = traci.person.getSpeed(ped_id)
+                    angle2 = traci.person.getAngle(ped_id)
+                    rad2 = np.deg2rad(90 - angle2)
+                    v2 = np.array([np.cos(rad2), np.sin(rad2)]) * speed2
+                    
+                    from metrics.safety_metrics import calculate_pair_ttc
+                    ttc = calculate_pair_ttc(p1, v1, p2, v2, d=1.0)
+                    if ttc >= 0 and ttc < min_ttc:
+                        min_ttc = ttc
+                
+                # Risk coloring: Green (Safe), Yellow (Potential), Orange (Near), Red (Critical)
+                if min_ttc > 3.0:
+                    color = (0, 255, 0, 255) # Green
+                elif min_ttc > 1.5:
+                    color = (255, 255, 0, 255) # Yellow
+                elif min_ttc > 0.5:
+                    color = (255, 128, 0, 255) # Orange
+                else:
+                    color = (255, 0, 0, 255) # Red
+                    
+                traci.vehicle.setColor(veh_id, color)
+            except Exception:
+                pass
+
+    def sumo_to_grid(self, X, Y):
+        """Convert SUMO coordinates back to grid coordinates."""
+        x = int(round(X * (19.0 / 200.0)))
+        y = int(round(Y * (23.0 / 200.0)))
+        x = max(0, min(self.grid_width - 1, x))
+        y = max(0, min(self.grid_height - 1, y))
+        return x, y
+

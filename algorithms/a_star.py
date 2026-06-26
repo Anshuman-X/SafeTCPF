@@ -76,8 +76,32 @@ class SpaceTimeAStar:
         for nx, ny in neighbors:
             if 0 <= nx < self.grid_width and 0 <= ny < self.grid_height:
                 if self.is_on_road(nx, ny):
-                    valid_neighbors.append((nx, ny))
+                    # Enforce lane direction logic (Objective 20)
+                    is_wait = (nx == x and ny == y)
+                    is_lane_change = (
+                        (x in [8, 9] and nx in [8, 9] and ny == y) or
+                        (x in [10, 11] and nx in [10, 11] and ny == y) or
+                        (y in [10, 11] and ny in [10, 11] and nx == x) or
+                        (y in [12, 13] and ny in [12, 13] and nx == x)
+                    )
                     
+                    if is_wait or is_lane_change:
+                        valid_neighbors.append((nx, ny))
+                    else:
+                        # Longitudinal moves and turns must respect lane direction
+                        allowed = True
+                        if nx > x and ny not in [10, 11]: # Moving East
+                            allowed = False
+                        elif nx < x and ny not in [12, 13]: # Moving West
+                            allowed = False
+                        elif ny > y and nx not in [10, 11]: # Moving North
+                            allowed = False
+                        elif ny < y and nx not in [8, 9]: # Moving South
+                            allowed = False
+                        
+                        if allowed:
+                            valid_neighbors.append((nx, ny))
+                            
         # Remove duplicates
         return list(set(valid_neighbors))
 
@@ -126,10 +150,10 @@ class SpaceTimeAStar:
             # In time-space planning, we are at the goal if (x, y) == goal
             # AND there are no future constraints on this goal cell.
             if (x, y) == goal:
-                # Check if there are any future vertex constraints at the goal
+                # Check if there are any future vertex constraints or future dynamic obstacles (pedestrians) at the goal
                 has_future_constraint = False
                 for future_t in range(t + 1, max_t):
-                    if (x, y, future_t) in vertex_constraints:
+                    if (x, y, future_t) in vertex_constraints or (x, y, future_t) in dynamic_obstacles:
                         has_future_constraint = True
                         break
                 if not has_future_constraint:

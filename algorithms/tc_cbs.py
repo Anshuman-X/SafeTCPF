@@ -121,11 +121,19 @@ class TCCBSTPlanner:
         # Solutions set C: contains list of tuples (untransformed_cost, CTNode)
         C = []
         
+        # Track search metrics (Objective 12)
+        generated_nodes = 1
+        expanded_nodes = 0
+        max_open_list_size = 0
+        max_depth = 0
+        num_replans = 0
+
         # Build root node
         root = CTNode()
         for a in range(self.num_agents):
             start = tuple(self.agents_def[a]['start'])
             goal = tuple(self.agents_def[a]['goal'])
+            num_replans += 1
             path = self.low_level.find_path(start, goal, set(), set(), dynamic_obstacles)
             if path is None:
                 return [] # Unsolvable
@@ -138,12 +146,15 @@ class TCCBSTPlanner:
         root.num_inter_team_conflicts = self.count_inter_team_conflicts(root.paths)
         
         heapq.heappush(open_list, root)
+        max_open_list_size = max(max_open_list_size, len(open_list))
         
         nodes_expanded = 0
         
         while open_list and (time.time() - start_time < time_limit) and (nodes_expanded < max_nodes):
             curr_node = heapq.heappop(open_list)
             nodes_expanded += 1
+            expanded_nodes += 1
+            max_depth = max(max_depth, curr_node.depth)
             
             # Dominance check against solutions in C
             is_dominated = False
@@ -179,8 +190,6 @@ class TCCBSTPlanner:
                 continue
                 
             # Resolve conflict: split
-            # conflict can be ('vertex', a1, a2, (x, y), t)
-            # or ('edge', a1, a2, (x1, y1), (x2, y2), t)
             if conflict[0] == 'vertex':
                 _, a1, a2, pos, t = conflict
                 constraints_to_add = [
@@ -196,6 +205,7 @@ class TCCBSTPlanner:
                 
             for agent_to_constrain, constr in constraints_to_add:
                 child = curr_node.copy()
+                child.depth = curr_node.depth + 1
                 child.constraints[agent_to_constrain].add(constr)
                 
                 # Re-plan for the constrained agent
@@ -211,9 +221,11 @@ class TCCBSTPlanner:
                     elif c[0] == 'edge':
                         edge_constrs.add((c[1][0], c[1][1], c[2][0], c[2][1], c[3]))
                         
+                num_replans += 1
                 new_path = self.low_level.find_path(start, goal, vertex_constrs, edge_constrs, dynamic_obstacles)
                 
                 if new_path is not None:
+                    generated_nodes += 1
                     child.paths[agent_to_constrain] = new_path
                     child.cost_vector = self.compute_team_costs(child.paths)
                     child.transformed_cost_vector = self.compute_transformed_costs(child.cost_vector, child.paths)
@@ -228,15 +240,20 @@ class TCCBSTPlanner:
                             break
                     if not child_dominated:
                         heapq.heappush(open_list, child)
+                        max_open_list_size = max(max_open_list_size, len(open_list))
                         
         # Return C containing non-dominated solutions
-        # Return format: list of paths dicts
         solutions = []
         for _, node in C:
             solutions.append({
                 'paths': node.paths,
                 'cost_vector': node.cost_vector,
                 'nodes_expanded': nodes_expanded,
+                'generated_nodes': generated_nodes,
+                'expanded_nodes': expanded_nodes,
+                'max_depth': max_depth,
+                'max_open_list_size': max_open_list_size,
+                'num_replans': num_replans,
                 'runtime': time.time() - start_time
             })
         return solutions
