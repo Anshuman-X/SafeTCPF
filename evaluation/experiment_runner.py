@@ -35,7 +35,7 @@ class ExperimentRunner:
         self.ped_model = PedestrianModel(self.grid_width, self.grid_height)
         
         self.results_dir = "results"
-        self.vis_dir = "figures"
+        self.vis_dir = self.config.get('visualization', {}).get('output_dir', 'visualizations')
         self.tables_dir = "tables"
         self.reports_dir = "reports"
         self.logs_dir = "logs"
@@ -500,7 +500,7 @@ class ExperimentRunner:
                 f.write("\n".join(latex_lines))
 
     def generate_visualizations(self, raw_df: pd.DataFrame):
-        """Generates 15 premium visual charts (Bar, Line, Box, Histograms, Scatter) and saves them in figures/ (Objective 8 & 9 & 10)."""
+        """Generates 15 premium visual charts (Bar, Line, Box, Histograms, Scatter) and saves them in visualizations/ (Objective 8 & 9 & 10)."""
         print("Generating premium charts for paper...")
         # Clean default settings
         plt.rcParams.update({
@@ -769,7 +769,7 @@ class ExperimentRunner:
         
         # Save legacy plots for backward compatibility with consistent colors
         self.generate_legacy_plots(raw_df)
-        print("All premium visual plots successfully generated and saved to figures/")
+        print(f"All premium visual plots successfully generated and saved to {self.vis_dir}/")
 
     def generate_legacy_plots(self, raw_df: pd.DataFrame):
         """Maintains backward compatibility by generating the legacy combined plots with consistent colors."""

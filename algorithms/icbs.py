@@ -2,7 +2,9 @@ import heapq
 import time
 from algorithms.search_node import CTNode
 from algorithms.a_star import SpaceTimeAStar
-from algorithms.tc_cbs import find_all_conflicts, get_agent_pos_at_t
+from algorithms.tc_common import (
+    find_all_conflicts,
+)
 
 class ICBSPlanner:
     def __init__(self, agents_def, grid_width=20, grid_height=24):
@@ -71,28 +73,33 @@ class ICBSPlanner:
             return 'non-cardinal', (path1, path2)
 
     def select_best_conflict(self, node, conflicts, dynamic_obstacles=None):
-        cardinal_conflicts = []
-        semi_conflicts = []
-        non_conflicts = []
-        
-        # To avoid doing too many A* runs, only classify up to the first 5 conflicts
+        """Select the best conflict to resolve using early-exit cardinal detection.
+
+        Classifies conflicts in order and immediately returns on the first cardinal
+        conflict found, avoiding redundant low-level A* calls.
+        """
+        first_semi = None
+        first_non = None
+
+        # Classify up to the first 5 conflicts with early-exit on cardinal
         for conflict in conflicts[:5]:
             cardinality, replanned_paths = self.classify_conflict(node, conflict, dynamic_obstacles)
             if cardinality == 'cardinal':
-                cardinal_conflicts.append((conflict, replanned_paths))
+                # Immediately return — no need to check further conflicts
+                return 'cardinal', conflict, replanned_paths
             elif cardinality == 'semi-cardinal':
-                semi_conflicts.append((conflict, replanned_paths))
+                if first_semi is None:
+                    first_semi = (conflict, replanned_paths)
             else:
-                non_conflicts.append((conflict, replanned_paths))
-                
-        if cardinal_conflicts:
-            return 'cardinal', cardinal_conflicts[0][0], cardinal_conflicts[0][1]
-        elif semi_conflicts:
-            return 'semi-cardinal', semi_conflicts[0][0], semi_conflicts[0][1]
-        elif non_conflicts:
-            return 'non-cardinal', non_conflicts[0][0], non_conflicts[0][1]
-            
-        # Fallback if list is empty or classifications failed
+                if first_non is None:
+                    first_non = (conflict, replanned_paths)
+
+        if first_semi is not None:
+            return 'semi-cardinal', first_semi[0], first_semi[1]
+        elif first_non is not None:
+            return 'non-cardinal', first_non[0], first_non[1]
+
+        # Fallback if classifications all failed
         if conflicts:
             return 'unknown', conflicts[0], (None, None)
         return 'none', None, (None, None)

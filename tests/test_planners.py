@@ -56,7 +56,7 @@ class TestTCCBSTPlanner(unittest.TestCase):
         self.assertTrue(len(solutions) > 0)
         
         # Verify that all solutions are conflict-free
-        from algorithms.tc_cbs import find_first_conflict
+        from algorithms.tc_common import find_first_conflict
         for sol in solutions:
             paths = sol['paths']
             conflict = find_first_conflict(paths)
@@ -79,7 +79,7 @@ class TestICBSPlanner(unittest.TestCase):
         self.assertTrue(solution['cost'] > 0)
         
         # Verify conflict-free
-        from algorithms.tc_cbs import find_first_conflict
+        from algorithms.tc_common import find_first_conflict
         conflict = find_first_conflict(solution['paths'])
         self.assertIsNone(conflict)
 
@@ -105,7 +105,7 @@ class TestTCICBSPlanner(unittest.TestCase):
         self.assertTrue(len(solutions) > 0)
         
         # Verify conflict-free
-        from algorithms.tc_cbs import find_first_conflict
+        from algorithms.tc_common import find_first_conflict
         for sol in solutions:
             conflict = find_first_conflict(sol['paths'])
             self.assertIsNone(conflict)

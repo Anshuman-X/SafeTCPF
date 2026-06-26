@@ -1,25 +1,49 @@
 import heapq
+from typing import Dict, List, Tuple, Set, Optional
 
 class SpaceTimeAStar:
-    def __init__(self, grid_width=20, grid_height=24):
-        self.grid_width = grid_width
-        self.grid_height = grid_height
+    def __init__(self, grid_width: int = 20, grid_height: int = 24) -> None:
+        """Initialize the Space-Time A* planner.
+
+        Args:
+            grid_width: Width of the grid.
+            grid_height: Height of the grid.
+        """
+        self.grid_width: int = grid_width
+        self.grid_height: int = grid_height
         
         # Lanes configuration
-        self.vertical_lanes = [8, 9, 10, 11]
-        self.horizontal_lanes = [10, 11, 12, 13]
+        self.vertical_lanes: List[int] = [8, 9, 10, 11]
+        self.horizontal_lanes: List[int] = [10, 11, 12, 13]
         
         # Cache for search results: key -> path list or None
-        self.cache = {}
+        self.cache: Dict[Tuple, Optional[List[Tuple[int, int]]]] = {}
         
-    def is_on_road(self, x, y):
-        # Check if coordinates are on the vertical or horizontal road
+    def is_on_road(self, x: int, y: int) -> bool:
+        """Check if coordinates are on the vertical or horizontal road.
+
+        Args:
+            x: Grid x-coordinate.
+            y: Grid y-coordinate.
+
+        Returns:
+            True if (x, y) is on the road, False otherwise.
+        """
         is_vert = (x in self.vertical_lanes) and (0 <= y < self.grid_height)
         is_horiz = (y in self.horizontal_lanes) and (0 <= x < self.grid_width)
         return is_vert or is_horiz
 
-    def get_neighbors(self, x, y):
-        neighbors = []
+    def get_neighbors(self, x: int, y: int) -> List[Tuple[int, int]]:
+        """Get valid adjacent road cells for movement, lane changes, and turns.
+
+        Args:
+            x: Current grid x-coordinate.
+            y: Current grid y-coordinate.
+
+        Returns:
+            List of valid (nx, ny) grid coordinates.
+        """
+        neighbors: List[Tuple[int, int]] = []
         # 1. Wait action is always a candidate
         neighbors.append((x, y))
         
@@ -72,11 +96,11 @@ class SpaceTimeAStar:
         elif x == 11: neighbors.append((10, y))
 
         # Filter out of bounds and off road
-        valid_neighbors = []
+        valid_neighbors: List[Tuple[int, int]] = []
         for nx, ny in neighbors:
             if 0 <= nx < self.grid_width and 0 <= ny < self.grid_height:
                 if self.is_on_road(nx, ny):
-                    # Enforce lane direction logic (Objective 20)
+                    # Enforce lane direction logic
                     is_wait = (nx == x and ny == y)
                     is_lane_change = (
                         (x in [8, 9] and nx in [8, 9] and ny == y) or
@@ -105,16 +129,41 @@ class SpaceTimeAStar:
         # Remove duplicates
         return list(set(valid_neighbors))
 
-    def heuristic(self, x, y, goal):
-        # Manhattan distance to the goal
+    def heuristic(self, x: int, y: int, goal: Tuple[int, int]) -> int:
+        """Calculate Manhattan distance to the goal.
+
+        Args:
+            x: Current grid x-coordinate.
+            y: Current grid y-coordinate.
+            goal: Goal coordinates (gx, gy).
+
+        Returns:
+            Manhattan distance to the goal.
+        """
         return abs(x - goal[0]) + abs(y - goal[1])
 
-    def find_path(self, start, goal, vertex_constraints, edge_constraints, dynamic_obstacles=None, max_t=100):
-        # start, goal are (x, y) tuples
-        # vertex_constraints is a set of (x, y, t)
-        # edge_constraints is a set of (x1, y1, x2, y2, t)
-        # dynamic_obstacles is a set of (x, y, t) for pedestrians
-        
+    def find_path(
+        self,
+        start: Tuple[int, int],
+        goal: Tuple[int, int],
+        vertex_constraints: Set[Tuple[int, int, int]],
+        edge_constraints: Set[Tuple[int, int, int, int, int]],
+        dynamic_obstacles: Optional[Set[Tuple[int, int, int]]] = None,
+        max_t: int = 100
+    ) -> Optional[List[Tuple[int, int]]]:
+        """Find a collision-free path from start to goal in space-time.
+
+        Args:
+            start: Start coordinates (x, y).
+            goal: Goal coordinates (x, y).
+            vertex_constraints: Set of (x, y, t) constraints.
+            edge_constraints: Set of (x1, y1, x2, y2, t) constraints.
+            dynamic_obstacles: Set of (x, y, t) representing pedestrians.
+            max_t: Maximum search depth time limit.
+
+        Returns:
+            List of (x, y) coordinates representing the path, or None if no path found.
+        """
         if dynamic_obstacles is None:
             dynamic_obstacles = set()
             
@@ -131,12 +180,11 @@ class SpaceTimeAStar:
             return list(cached_path) if cached_path is not None else None
             
         # Priority Queue elements: (f_score, g_score, x, y, t, parent)
-        # parent is a reference to the parent tuple
         start_state = (self.heuristic(start[0], start[1], goal), 0, start[0], start[1], 0, None)
         open_set = [start_state]
         
         # Closed set stores (x, y, t)
-        closed_set = set()
+        closed_set: Set[Tuple[int, int, int]] = set()
         
         while open_set:
             f, g, x, y, t, parent = heapq.heappop(open_set)
@@ -147,10 +195,8 @@ class SpaceTimeAStar:
             closed_set.add(state_key)
             
             # Check goal condition
-            # In time-space planning, we are at the goal if (x, y) == goal
-            # AND there are no future constraints on this goal cell.
             if (x, y) == goal:
-                # Check if there are any future vertex constraints or future dynamic obstacles (pedestrians) at the goal
+                # Check if there are any future vertex constraints or future dynamic obstacles at the goal
                 has_future_constraint = False
                 for future_t in range(t + 1, max_t):
                     if (x, y, future_t) in vertex_constraints or (x, y, future_t) in dynamic_obstacles:
@@ -158,7 +204,7 @@ class SpaceTimeAStar:
                         break
                 if not has_future_constraint:
                     # Reconstruct path
-                    path = []
+                    path: List[Tuple[int, int]] = []
                     curr = (f, g, x, y, t, parent)
                     while curr is not None:
                         path.append((curr[2], curr[3]))

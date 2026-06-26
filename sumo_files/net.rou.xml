@@ -15,21 +15,35 @@
     <route id="r_NW"    edges="N_to_C C_to_W"/>
     <route id="r_SE"    edges="S_to_C C_to_E"/>
 
-    <!-- Concrete vehicles for standalone demo (sorted by depart time) -->
-    <vehicle id="veh_ns0" type="car" route="r_NS" depart="0.0"/>
-    <vehicle id="veh_sn0" type="car" route="r_SN" depart="0.0"/>
-    <vehicle id="veh_ew0" type="car" route="r_EW" depart="2.0"/>
-    <vehicle id="veh_we0" type="car" route="r_WE" depart="2.0"/>
-    <vehicle id="veh_nw0" type="car" route="r_NW" depart="5.0"/>
-    <vehicle id="veh_se0" type="car" route="r_SE" depart="5.0"/>
-    <vehicle id="veh_ns1" type="car" route="r_NS" depart="10.0"/>
-    <vehicle id="veh_sn1" type="car" route="r_SN" depart="10.0"/>
-    <vehicle id="veh_ew1" type="car" route="r_EW" depart="12.0"/>
-    <vehicle id="veh_we1" type="car" route="r_WE" depart="12.0"/>
-    <vehicle id="veh_nw1" type="car" route="r_NW" depart="15.0"/>
-    <vehicle id="veh_se1" type="car" route="r_SE" depart="15.0"/>
-    <vehicle id="veh_ns2" type="car" route="r_NS" depart="20.0"/>
-    <vehicle id="veh_sn2" type="car" route="r_SN" depart="20.0"/>
-    <vehicle id="veh_ew2" type="car" route="r_EW" depart="22.0"/>
-    <vehicle id="veh_we2" type="car" route="r_WE" depart="22.0"/>
+    <!-- Config-driven mixed vehicles continuously spawned as flows (reproducible seed=42) -->
+    <flow id="flow_car_r_NS" type="car" route="r_NS" begin="0" end="1000" probability="0.013333" departLane="best" departSpeed="max"/>
+    <flow id="flow_motorcycle_r_NS" type="motorcycle" route="r_NS" begin="0" end="1000" probability="0.011667" departLane="best" departSpeed="max"/>
+    <flow id="flow_autorickshaw_r_NS" type="autorickshaw" route="r_NS" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_bus_r_NS" type="bus" route="r_NS" begin="0" end="1000" probability="0.001667" departLane="best" departSpeed="max"/>
+    <flow id="flow_bicycle_r_NS" type="bicycle" route="r_NS" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_car_r_SN" type="car" route="r_SN" begin="0" end="1000" probability="0.013333" departLane="best" departSpeed="max"/>
+    <flow id="flow_motorcycle_r_SN" type="motorcycle" route="r_SN" begin="0" end="1000" probability="0.011667" departLane="best" departSpeed="max"/>
+    <flow id="flow_autorickshaw_r_SN" type="autorickshaw" route="r_SN" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_bus_r_SN" type="bus" route="r_SN" begin="0" end="1000" probability="0.001667" departLane="best" departSpeed="max"/>
+    <flow id="flow_bicycle_r_SN" type="bicycle" route="r_SN" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_car_r_EW" type="car" route="r_EW" begin="0" end="1000" probability="0.013333" departLane="best" departSpeed="max"/>
+    <flow id="flow_motorcycle_r_EW" type="motorcycle" route="r_EW" begin="0" end="1000" probability="0.011667" departLane="best" departSpeed="max"/>
+    <flow id="flow_autorickshaw_r_EW" type="autorickshaw" route="r_EW" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_bus_r_EW" type="bus" route="r_EW" begin="0" end="1000" probability="0.001667" departLane="best" departSpeed="max"/>
+    <flow id="flow_bicycle_r_EW" type="bicycle" route="r_EW" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_car_r_WE" type="car" route="r_WE" begin="0" end="1000" probability="0.013333" departLane="best" departSpeed="max"/>
+    <flow id="flow_motorcycle_r_WE" type="motorcycle" route="r_WE" begin="0" end="1000" probability="0.011667" departLane="best" departSpeed="max"/>
+    <flow id="flow_autorickshaw_r_WE" type="autorickshaw" route="r_WE" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_bus_r_WE" type="bus" route="r_WE" begin="0" end="1000" probability="0.001667" departLane="best" departSpeed="max"/>
+    <flow id="flow_bicycle_r_WE" type="bicycle" route="r_WE" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_car_r_NW" type="car" route="r_NW" begin="0" end="1000" probability="0.013333" departLane="best" departSpeed="max"/>
+    <flow id="flow_motorcycle_r_NW" type="motorcycle" route="r_NW" begin="0" end="1000" probability="0.011667" departLane="best" departSpeed="max"/>
+    <flow id="flow_autorickshaw_r_NW" type="autorickshaw" route="r_NW" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_bus_r_NW" type="bus" route="r_NW" begin="0" end="1000" probability="0.001667" departLane="best" departSpeed="max"/>
+    <flow id="flow_bicycle_r_NW" type="bicycle" route="r_NW" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_car_r_SE" type="car" route="r_SE" begin="0" end="1000" probability="0.013333" departLane="best" departSpeed="max"/>
+    <flow id="flow_motorcycle_r_SE" type="motorcycle" route="r_SE" begin="0" end="1000" probability="0.011667" departLane="best" departSpeed="max"/>
+    <flow id="flow_autorickshaw_r_SE" type="autorickshaw" route="r_SE" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
+    <flow id="flow_bus_r_SE" type="bus" route="r_SE" begin="0" end="1000" probability="0.001667" departLane="best" departSpeed="max"/>
+    <flow id="flow_bicycle_r_SE" type="bicycle" route="r_SE" begin="0" end="1000" probability="0.003333" departLane="best" departSpeed="max"/>
 </routes>

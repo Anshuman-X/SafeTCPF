@@ -2,6 +2,8 @@ import os
 import sys
 import time
 import traceback
+import subprocess
+import yaml
 import pandas as pd
 import traci
 from evaluation.experiment_runner import ExperimentRunner
@@ -39,9 +41,12 @@ def run_sumo_demo(gui=False):
         best_sol = solutions[0]
         paths = best_sol['paths']
         
-        # Assign mixed traffic vehicle types (excluding truck) proportionally to active vehicles
+        # Assign mixed traffic vehicle types proportionally to active vehicles
         import random
-        random.seed(42) # Seed for reproducibility in the demo
+        # Use seed from traffic_generation config for reproducibility
+        gen_cfg = env.config.get('traffic_generation', {})
+        demo_seed = gen_cfg.get('seed', 42)
+        random.seed(demo_seed)
         proportions = runner.config['simulation']['mixed_traffic']['proportions']
         vtypes = list(proportions.keys())
         weights = list(proportions.values())
@@ -185,6 +190,38 @@ def run_sumo_demo(gui=False):
         traceback.print_exc()
         print("Continuing project execution...")
 
+
+def run_standalone_demo():
+    """Launch SUMO GUI directly with pre-generated mixed-traffic route files.
+
+    This bypasses the TC-ICBS planner entirely and just opens the standalone
+    SUMO configuration (net.sumocfg) that contains baked-in vehicles of all
+    types and continuous pedestrian spawns.  Use this to visually verify that
+    cars, motorcycles, autorickshaws, buses, bicycles AND pedestrians all
+    appear simultaneously in the SUMO GUI.
+    """
+    print("\n--- Running Standalone SUMO Mixed-Traffic Demo ---")
+    print("(No planning required — uses pre-generated route files)\n")
+    try:
+        env = SumoEnvironment()
+        print(f"  Vehicle route file : {env.rou_xml}")
+        print(f"  Pedestrian file    : {env.ped_xml}")
+        print(f"  SUMO config        : {env.sumocfg}")
+        print("\nLaunching sumo-gui...  Close the SUMO window when done.\n")
+
+        # Launch sumo-gui with the standalone config (blocks until closed)
+        subprocess.run(
+            ["sumo-gui", "-c", env.sumocfg, "--start", "--delay", "100"],
+            check=True
+        )
+        print("Standalone demo finished.")
+    except FileNotFoundError:
+        print("Error: sumo-gui not found. Ensure SUMO is installed and on PATH.")
+    except Exception as e:
+        print(f"Standalone demo error: {e}")
+        traceback.print_exc()
+
+
 def main():
     print("====================================================")
     print("          SafeTCPF Master Execution Pipeline        ")
@@ -201,8 +238,11 @@ def main():
     runner.generate_pdf_reports(results_df)
     
     # 4. Run SUMO demonstration
-    gui = "--gui" in sys.argv
-    run_sumo_demo(gui=gui)
+    if "--standalone" in sys.argv:
+        run_standalone_demo()
+    else:
+        gui = "--gui" in sys.argv
+        run_sumo_demo(gui=gui)
     
     # Write build log complete
     with open("logs/build_log.txt", "a") as log:

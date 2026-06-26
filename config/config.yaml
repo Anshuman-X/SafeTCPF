@@ -50,9 +50,9 @@ simulation:
     enabled: true
     # Spawning probabilities per step for each density
     probabilities:
-      low: 0.05
-      medium: 0.15
-      high: 0.30
+      low: 0.10
+      medium: 0.25
+      high: 0.50
     # Vehicle arrival distribution: 'poisson' or 'binomial' or 'uniform'
     arrival_distribution: "poisson"
 
@@ -131,3 +131,28 @@ scenarios:
         goal: [0, 12]
       - start: [19, 13]
         goal: [0, 13]
+
+# Standalone mixed traffic and pedestrian generation configuration
+traffic_generation:
+  seed: 42
+  duration_steps: 1000
+  selected_traffic_density: "medium"
+  selected_pedestrian_density: "medium"
+  # Spawning rates (probability of spawn per step) for vehicles:
+  vehicle_spawn_rates:
+    low: 0.08
+    medium: 0.20
+    high: 0.40
+  # Spawning rates (probability of spawn per step) for pedestrians:
+  pedestrian_spawn_rates:
+    low: 0.05
+    medium: 0.15
+    high: 0.30
+  # Mixed traffic proportions (must sum to 1.0):
+  proportions:
+    car: 0.40
+    motorcycle: 0.35
+    autorickshaw: 0.10
+    bus: 0.05
+    bicycle: 0.10
+

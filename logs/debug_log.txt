@@ -1,1 +1,0 @@
-SafeTCPF Debug Log Initialized.

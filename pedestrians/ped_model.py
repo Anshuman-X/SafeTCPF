@@ -34,17 +34,17 @@ class PedestrianModel:
         
         # Determine number of pedestrians and spacing based on density
         if density == "low":
-            count = random.randint(1, 3) if seed is not None else 2
-            spawn_times = sorted([random.randint(1, 15) for _ in range(count)]) if seed is not None else [2, 6]
-            paths_to_use = [random.randint(0, 7) for _ in range(count)] if seed is not None else [0, 2]
+            count = random.randint(4, 6)
+            spawn_times = sorted([random.randint(0, sim_steps - 10) for _ in range(count)])
+            paths_to_use = [random.randint(0, 7) for _ in range(count)]
         elif density == "medium":
-            count = random.randint(4, 7) if seed is not None else 6
-            spawn_times = sorted([random.randint(0, 20) for _ in range(count)]) if seed is not None else [1, 3, 5, 7, 9, 11]
-            paths_to_use = [random.randint(0, 7) for _ in range(count)] if seed is not None else [0, 1, 2, 3, 4, 6]
+            count = random.randint(8, 12)
+            spawn_times = sorted([random.randint(0, sim_steps - 5) for _ in range(count)])
+            paths_to_use = [random.randint(0, 7) for _ in range(count)]
         elif density == "high":
-            count = random.randint(8, 14) if seed is not None else 12
-            spawn_times = sorted([random.randint(0, 25) for _ in range(count)]) if seed is not None else [0, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17]
-            paths_to_use = [random.randint(0, 7) for _ in range(count)] if seed is not None else [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3]
+            count = random.randint(15, 20)
+            spawn_times = sorted([random.randint(0, sim_steps - 2) for _ in range(count)])
+            paths_to_use = [random.randint(0, 7) for _ in range(count)]
         else:
             spawn_times = []
             paths_to_use = []

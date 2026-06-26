@@ -95,53 +95,77 @@ class SumoEnvironment:
     <route id="r_NW"    edges="N_to_C C_to_W"/>
     <route id="r_SE"    edges="S_to_C C_to_E"/>"""
 
+        # Read parameters from traffic_generation
+        gen_cfg = self.config.get('traffic_generation', {})
+        seed = gen_cfg.get('seed', 42)
+        duration = gen_cfg.get('duration_steps', 1000)
+        t_density = gen_cfg.get('selected_traffic_density', 'medium')
+        p_density = gen_cfg.get('selected_pedestrian_density', 'medium')
+
+        veh_spawn_rate = gen_cfg.get('vehicle_spawn_rates', {}).get(t_density, 0.20)
+        ped_spawn_rate = gen_cfg.get('pedestrian_spawn_rates', {}).get(p_density, 0.15)
+
+        proportions = gen_cfg.get('proportions', {
+            'car': 0.40,
+            'motorcycle': 0.35,
+            'autorickshaw': 0.10,
+            'bus': 0.05,
+            'bicycle': 0.10
+        })
+
+        import random
+        rng = random.Random(seed)
+
         # 4. Standalone Routes XML (contains concrete vehicle definitions for standalone sumo-gui mode)
+        routes_list = ["r_NS", "r_SN", "r_EW", "r_WE", "r_NW", "r_SE"]
+        standalone_flows = []
+        for route in routes_list:
+            for vtype, proportion in proportions.items():
+                # Spawning probability per second for this specific route and vehicle type
+                flow_prob = veh_spawn_rate * (1.0 / len(routes_list)) * proportion
+                if flow_prob > 0:
+                    flow_id = f"flow_{vtype}_{route}"
+                    standalone_flows.append(
+                        f'    <flow id="{flow_id}" type="{vtype}" route="{route}" begin="0" end="{duration}" '
+                        f'probability="{flow_prob:.6f}" departLane="best" departSpeed="max"/>'
+                    )
+
+        vehicles_xml_block = "\n".join(standalone_flows)
         standalone_routes_content = f"""<routes>
 {vtypes_routes_template}
 
-    <!-- Concrete vehicles for standalone demo (sorted by depart time) -->
-    <vehicle id="veh_ns0" type="car" route="r_NS" depart="0.0"/>
-    <vehicle id="veh_sn0" type="car" route="r_SN" depart="0.0"/>
-    <vehicle id="veh_ew0" type="car" route="r_EW" depart="2.0"/>
-    <vehicle id="veh_we0" type="car" route="r_WE" depart="2.0"/>
-    <vehicle id="veh_nw0" type="car" route="r_NW" depart="5.0"/>
-    <vehicle id="veh_se0" type="car" route="r_SE" depart="5.0"/>
-    <vehicle id="veh_ns1" type="car" route="r_NS" depart="10.0"/>
-    <vehicle id="veh_sn1" type="car" route="r_SN" depart="10.0"/>
-    <vehicle id="veh_ew1" type="car" route="r_EW" depart="12.0"/>
-    <vehicle id="veh_we1" type="car" route="r_WE" depart="12.0"/>
-    <vehicle id="veh_nw1" type="car" route="r_NW" depart="15.0"/>
-    <vehicle id="veh_se1" type="car" route="r_SE" depart="15.0"/>
-    <vehicle id="veh_ns2" type="car" route="r_NS" depart="20.0"/>
-    <vehicle id="veh_sn2" type="car" route="r_SN" depart="20.0"/>
-    <vehicle id="veh_ew2" type="car" route="r_EW" depart="22.0"/>
-    <vehicle id="veh_we2" type="car" route="r_WE" depart="22.0"/>
+    <!-- Config-driven mixed vehicles continuously spawned as flows (reproducible seed={seed}) -->
+{vehicles_xml_block}
 </routes>
 """
         with open(self.rou_xml, "w") as f:
             f.write(standalone_routes_content)
 
         # 5. Standalone Pedestrians XML (contains concrete pedestrian definitions with walk stages)
-        standalone_ped_content = """<routes>
-    <!-- Concrete pedestrians for standalone demo (sorted by depart time) -->
-    <person id="ped_0" depart="0.0" type="ped">
-        <walk edges="N_to_C C_to_S"/>
-    </person>
-    <person id="ped_1" depart="2.0" type="ped">
-        <walk edges="S_to_C C_to_N"/>
-    </person>
-    <person id="ped_2" depart="4.0" type="ped">
-        <walk edges="E_to_C C_to_W"/>
-    </person>
-    <person id="ped_3" depart="6.0" type="ped">
-        <walk edges="W_to_C C_to_E"/>
-    </person>
-    <person id="ped_4" depart="8.0" type="ped">
-        <walk edges="N_to_C C_to_E"/>
-    </person>
-    <person id="ped_5" depart="10.0" type="ped">
-        <walk edges="S_to_C C_to_W"/>
-    </person>
+        ped_walks = [
+            "N_to_C C_to_S",
+            "S_to_C C_to_N",
+            "E_to_C C_to_W",
+            "W_to_C C_to_E",
+            "N_to_C C_to_W",
+            "S_to_C C_to_E"
+        ]
+        standalone_ped_flows = []
+        for i, walk in enumerate(ped_walks):
+            # Spawning probability per second for this specific walk route
+            ped_flow_prob = ped_spawn_rate / len(ped_walks)
+            if ped_flow_prob > 0:
+                pflow_id = f"pflow_{i}"
+                standalone_ped_flows.append(
+                    f'    <personFlow id="{pflow_id}" type="ped" begin="0" end="{duration}" probability="{ped_flow_prob:.6f}">\n'
+                    f'        <walk edges="{walk}"/>\n'
+                    f'    </personFlow>'
+                )
+
+        pedestrians_xml_block = "\n".join(standalone_ped_flows)
+        standalone_ped_content = f"""<routes>
+    <!-- Config-driven dynamic pedestrians continuously spawned as personFlows on sidewalks and crossings -->
+{pedestrians_xml_block}
 </routes>
 """
         with open(self.ped_xml, "w") as f:
@@ -184,7 +208,7 @@ class SumoEnvironment:
     </input>
     <time>
         <begin value="0"/>
-        <end value="1000"/>
+        <end value="{duration}"/>
         <step-length value="1.0"/>
     </time>
 </configuration>
@@ -201,7 +225,7 @@ class SumoEnvironment:
     </input>
     <time>
         <begin value="0"/>
-        <end value="1000"/>
+        <end value="{duration}"/>
         <step-length value="1.0"/>
     </time>
 </configuration>
@@ -242,28 +266,26 @@ class SumoEnvironment:
           Horizontal lanes: rows 10, 11 (eastbound)   /  12, 13 (westbound)
           Intersection:     x ∈ [8..11], y ∈ [10..13]
 
-        Strategy:
-          - For vehicles on vertical lanes, use the exact SUMO X coordinate
-            of the lane and interpolate Y linearly across the grid height.
-          - For vehicles on horizontal lanes, use the exact SUMO Y coordinate
-            of the lane and interpolate X linearly across the grid width.
-          - For other positions (pedestrian crosswalks, off-road), use pure
-            linear interpolation on both axes.
+        Piecewise linear mapping ensures vehicles and pedestrians are aligned
+        accurately with the physical layout of lanes, sidewalks, and crossings.
         """
-        # Exact SUMO X positions of each vertical-lane column
-        LANE_X = {8: 95.20, 9: 98.40, 10: 101.60, 11: 104.80}
-        # Exact SUMO Y positions of each horizontal-lane row
-        LANE_Y = {10: 95.20, 11: 98.40, 12: 101.60, 13: 104.80}
-
-        if x in LANE_X:
-            X = LANE_X[x]
-            Y = y * (200.0 / 23.0)
-        elif y in LANE_Y:
-            X = x * (200.0 / 19.0)
-            Y = LANE_Y[y]
+        # Map x to X coordinate
+        if x <= 7:
+            X = x * (92.60 / 7.0)
+        elif x >= 12:
+            X = 107.40 + (x - 12) * ((200.00 - 107.40) / 7.0)
         else:
-            X = x * (200.0 / 19.0)
-            Y = y * (200.0 / 23.0)
+            X_map = {8: 95.20, 9: 98.40, 10: 101.60, 11: 104.80}
+            X = X_map[x]
+
+        # Map y to Y coordinate
+        if y <= 9:
+            Y = y * (92.60 / 9.0)
+        elif y >= 14:
+            Y = 107.40 + (y - 14) * ((200.00 - 107.40) / 9.0)
+        else:
+            Y_map = {10: 95.20, 11: 98.40, 12: 101.60, 13: 104.80}
+            Y = Y_map[y]
 
         return X, Y
 
@@ -285,15 +307,19 @@ class SumoEnvironment:
         return "N_to_C"
 
     def get_lane_index(self, x, y):
+        """Get the appropriate vehicle lane index.
+
+        Since lane 0 is the pedestrian sidewalk, vehicle lanes are indices 1 and 2.
+        """
         if x in [8, 9]:
-            return 0 if x == 8 else 1
+            return 1 if x == 8 else 2
         elif x in [10, 11]:
-            return 1 if x == 10 else 0
+            return 2 if x == 10 else 1
         elif y in [10, 11]:
-            return 0 if y == 10 else 1
+            return 1 if y == 10 else 2
         elif y in [12, 13]:
-            return 1 if y == 12 else 0
-        return 0
+            return 2 if y == 12 else 1
+        return 1
 
     def start_simulation(self, gui=False):
         # Choose sumo binary
@@ -348,60 +374,74 @@ class SumoEnvironment:
             # Vehicle might have arrived or not spawnable
             pass
             
-    def spawn_pedestrian(self, ped_id, x, y):
+    def spawn_pedestrian(self, ped_id: str, x: int, y: int) -> None:
         """Spawn a pedestrian at the given grid position via TraCI.
 
-        Since the network has no dedicated sidewalk infrastructure, pedestrians
-        are placed on a vehicle edge with a long waiting stage, then teleported
-        to their actual position with moveToXY(keepRoute=2).
+        Pedestrians are placed on a sidewalk edge at its midpoint with a long
+        waiting stage, then immediately snapped to their real grid position.
+        keepRoute=0 forces SUMO to find the nearest pedestrian-accessible lane
+        (sidewalk, crossing, or walking area) so they never appear in grass or
+        inside buildings.
         """
         try:
-            # Place on a default edge at the midpoint — the initial position
-            # does not matter because we immediately teleport with moveToXY.
+            # Place on a default sidewalk edge at the midpoint.
+            # The initial position does not matter because we immediately snap
+            # with moveToXY.  Edge N_to_C lane 0 is the guessed sidewalk.
             edge_id = "N_to_C"
             pos = 45.0  # roughly mid-edge (edge length ≈ 89.6 m)
             traci.person.add(ped_id, edge_id, pos, typeID="ped")
             # Person MUST have at least one plan stage or SUMO removes them.
             traci.person.appendWaitingStage(ped_id, 1000.0, "planner_controlled")
-            # Teleport to the real grid position
+            # Snap to the real grid position on the nearest walkable lane.
+            # keepRoute=0 allows any edge and replaces the current route with
+            # the edge found, preventing out-of-network placement.
             X, Y = self.grid_to_sumo(x, y)
-            traci.person.moveToXY(ped_id, "", X, Y, angle=0, keepRoute=2)
+            traci.person.moveToXY(ped_id, "", X, Y, angle=0, keepRoute=0)
         except traci.exceptions.TraCIException as e:
             print(f"  Warning: Could not spawn pedestrian {ped_id}: {e}")
         
-    def move_pedestrian(self, ped_id, x, y):
+    def move_pedestrian(self, ped_id: str, x: int, y: int) -> None:
+        """Move a pedestrian to a new grid position via TraCI.
+
+        keepRoute=0 forces SUMO to snap to the nearest walkable lane so the
+        pedestrian stays on valid infrastructure at all times.
+        """
         X, Y = self.grid_to_sumo(x, y)
         try:
-            traci.person.moveToXY(ped_id, "", X, Y, angle=0, keepRoute=2)
+            traci.person.moveToXY(ped_id, "", X, Y, angle=0, keepRoute=0)
         except traci.exceptions.TraCIException:
             pass
 
-    def spawn_background_vehicles(self, density="medium", step=0, seed=None):
-        """Dynamically spawns background traffic at boundary nodes based on the density setting."""
+    def spawn_background_vehicles(self, density: str = "medium", step: int = 0, seed: int = None) -> None:
+        """Dynamically spawn background traffic at boundary edges based on density.
+
+        A gap-check prevents spawning a new vehicle on an edge that already has
+        another vehicle within 15 m of the entry point, eliminating overlap at spawn.
+        """
         bg_traffic_config = self.config.get('simulation', {}).get('background_traffic', {})
         if not bg_traffic_config.get('enabled', True):
             return
-            
+
         import random
         # Ensure unique but reproducible spawns at each step
         if seed is not None:
             random.seed(seed + step)
-            
+
         probs = bg_traffic_config.get('probabilities', {
             'low': 0.05,
             'medium': 0.15,
             'high': 0.30
         })
-        
+
         prob = probs.get(density, 0.15)
-        
+
         # Check if we spawn a vehicle in this step
         if random.random() < prob:
             routes = ["r_NS", "r_SN", "r_EW", "r_WE", "r_NW", "r_SE"]
             route_id = random.choice(routes)
             veh_id = f"bg_{step}_{random.randint(0, 1000)}"
-            
-            # Select vehicle type dynamically (heterogeneous mixed traffic) (Objective 20)
+
+            # Select vehicle type dynamically (heterogeneous mixed traffic)
             proportions = self.config.get('simulation', {}).get('mixed_traffic', {}).get('proportions', {
                 'car': 0.45,
                 'motorcycle': 0.30,
@@ -412,11 +452,31 @@ class SumoEnvironment:
             vtypes = list(proportions.keys())
             weights = list(proportions.values())
             type_id = random.choices(vtypes, weights=weights)[0]
-            
+
+            # Gap-check: map route to its entry edge and verify no vehicle is
+            # within 15 m of the edge start before spawning.
+            route_to_edge = {
+                "r_NS": "N_to_C", "r_NW": "N_to_C",
+                "r_SN": "S_to_C", "r_SE": "S_to_C",
+                "r_EW": "E_to_C",
+                "r_WE": "W_to_C",
+            }
+            entry_edge = route_to_edge.get(route_id, "N_to_C")
+            gap_clear = True
             try:
-                traci.vehicle.add(veh_id, route_id, typeID=type_id)
-            except traci.exceptions.TraCIException:
-                pass
+                vehs_on_edge = traci.edge.getLastStepVehicleIDs(entry_edge)
+                for v in vehs_on_edge:
+                    if traci.vehicle.getLanePosition(v) < 15.0:
+                        gap_clear = False
+                        break
+            except Exception:
+                gap_clear = True  # if TraCI query fails, allow spawn
+
+            if gap_clear:
+                try:
+                    traci.vehicle.add(veh_id, route_id, typeID=type_id)
+                except traci.exceptions.TraCIException:
+                    pass
 
     def update_gui_overlays(self, active_veh_paths, pedestrians, step_idx):
         """Updates colors in SUMO GUI based on risk coloring and draws active planned path POIs (Objective 20)."""

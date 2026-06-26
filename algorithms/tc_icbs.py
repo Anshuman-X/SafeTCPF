@@ -2,7 +2,13 @@ import heapq
 import time
 from algorithms.search_node import CTNode
 from algorithms.a_star import SpaceTimeAStar
-from algorithms.tc_cbs import find_all_conflicts, dominates
+from algorithms.tc_common import (
+    dominates,
+    find_all_conflicts,
+    compute_team_costs,
+    compute_transformed_costs,
+    count_inter_team_conflicts,
+)
 
 class TCICBSPlanner:
     def __init__(self, teams, agents_def, epsilon=0.1, grid_width=20, grid_height=24):
@@ -18,31 +24,12 @@ class TCICBSPlanner:
         self.num_agents = len(agents_def)
 
     def compute_team_costs(self, paths):
-        costs = []
-        for team in self.teams:
-            team_agents = team['agents']
-            agent_costs = []
-            for a in team_agents:
-                agent_costs.append(len(paths[a]) - 1)
-            
-            if team['objective'] == 'min-sum':
-                costs.append(sum(agent_costs))
-            elif team['objective'] == 'min-max':
-                costs.append(max(agent_costs) if agent_costs else 0)
-            else:
-                costs.append(sum(agent_costs))
-        return costs
+        """Delegate to shared tc_common implementation."""
+        return compute_team_costs(self.teams, paths)
 
     def compute_transformed_costs(self, team_costs, paths):
-        transformed_costs = []
-        individual_costs = {a: len(paths[a]) - 1 for a in range(self.num_agents)}
-        
-        for j, team in enumerate(self.teams):
-            team_agents = set(team['agents'])
-            sum_outside = sum(individual_costs[a] for a in range(self.num_agents) if a not in team_agents)
-            g_f = team_costs[j] + self.epsilon * sum_outside
-            transformed_costs.append(g_f)
-        return transformed_costs
+        """Delegate to shared tc_common implementation."""
+        return compute_transformed_costs(self.teams, team_costs, paths, self.epsilon, self.num_agents)
 
     def classify_conflict(self, node, conflict, dynamic_obstacles=None):
         if conflict[0] == 'vertex':
@@ -109,20 +96,8 @@ class TCICBSPlanner:
         return self.get_agent_team(a1) != self.get_agent_team(a2)
 
     def count_inter_team_conflicts(self, paths):
-        conflicts = find_all_conflicts(paths)
-        count = 0
-        agent_team = {}
-        for team in self.teams:
-            for a in team['agents']:
-                agent_team[a] = team['id']
-                
-        for c in conflicts:
-            a1, a2 = c[1], c[2]
-            t1 = agent_team.get(a1)
-            t2 = agent_team.get(a2)
-            if t1 is not None and t2 is not None and t1 != t2:
-                count += 1
-        return count
+        """Delegate to shared tc_common implementation."""
+        return count_inter_team_conflicts(self.teams, paths)
 
     def select_best_conflict(self, node, conflicts, dynamic_obstacles=None):
         first_semi = None
