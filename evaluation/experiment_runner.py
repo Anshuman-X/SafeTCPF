@@ -197,15 +197,40 @@ class ExperimentRunner:
                             max_open_list_size = 0
                             num_replans = 0
                             
+                            cost_metrics = {}
                             if success == 1:
                                 best_sol = solutions[0]
+                                paths = best_sol['paths']
                                 nodes_expanded = best_sol.get('nodes_expanded', 0)
                                 generated_nodes = best_sol.get('generated_nodes', 0)
                                 expanded_nodes = best_sol.get('expanded_nodes', 0)
                                 max_depth = best_sol.get('max_depth', 0)
                                 max_open_list_size = best_sol.get('max_open_list_size', 0)
                                 num_replans = best_sol.get('num_replans', 0)
-                                metrics = calculate_metrics(best_sol['paths'], pedestrians, self.grid_width, self.grid_height, config=self.config)
+                                metrics = calculate_metrics(paths, pedestrians, self.grid_width, self.grid_height, config=self.config)
+                                
+                                # Compute and print cost metrics
+                                print("==========================")
+                                print("COST ANALYSIS")
+                                print("==========================")
+                                print("")
+                                for a_id in sorted(paths.keys()):
+                                    cost = len(paths[a_id]) - 1
+                                    cost_metrics[f'Agent{a_id + 1}_Cost'] = cost
+                                    print(f"Agent {a_id + 1} Cost : {cost}")
+                                print("")
+                                
+                                for idx, team in enumerate(teams):
+                                    team_id = team.get('id', idx + 1)
+                                    team_agents = team.get('agents', [])
+                                    team_cost = sum((len(paths[a]) - 1) for a in team_agents if a in paths)
+                                    cost_metrics[f'Team{team_id}_Cost'] = team_cost
+                                    print(f"Team {team_id} Cost : {team_cost}")
+                                print("")
+                                
+                                total_cost = sum(cost_metrics[f'Team{t.get("id", i + 1)}_Cost'] for i, t in enumerate(teams))
+                                cost_metrics['Total_Cost'] = total_cost
+                                print(f"Total Cost : {total_cost}")
                             
                             # Append raw run row
                             raw_row = {
@@ -224,7 +249,8 @@ class ExperimentRunner:
                                 'max_open_list_size': max_open_list_size if success else np.nan,
                                 'num_replans': num_replans if success else np.nan,
                                 'timestamp': pd.Timestamp.now().isoformat(),
-                                **metrics
+                                **metrics,
+                                **cost_metrics
                             }
                             all_raw_results.append(raw_row)
                             

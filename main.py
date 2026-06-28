@@ -20,7 +20,7 @@ def run_sumo_demo(gui=False):
         
         # We will use the Motorcade scenario from config for the demo
         runner = ExperimentRunner()
-        scenario = runner.config['scenarios'][0] # Motorcade
+        scenario = runner.config['scenarios'][1] # Motorcade
         teams = scenario['teams']
         agents_def = scenario['agents_def']
         
@@ -40,6 +40,30 @@ def run_sumo_demo(gui=False):
             
         best_sol = solutions[0]
         paths = best_sol['paths']
+        
+        # Compute and print cost analysis
+        print("==========================")
+        print("COST ANALYSIS")
+        print("==========================")
+        print("")
+        agent_costs = {}
+        for a_id in sorted(paths.keys()):
+            cost = len(paths[a_id]) - 1
+            agent_costs[a_id] = cost
+            print(f"Agent {a_id + 1} Cost : {cost}")
+        print("")
+        
+        team_costs = {}
+        for idx, team in enumerate(teams):
+            team_id = team.get('id', idx + 1)
+            team_agents = team.get('agents', [])
+            team_cost = sum(agent_costs[a] for a in team_agents if a in agent_costs)
+            team_costs[team_id] = team_cost
+            print(f"Team {team_id} Cost : {team_cost}")
+        print("")
+        
+        total_cost = sum(team_costs.values())
+        print(f"Total Cost : {total_cost}")
         
         # Assign mixed traffic vehicle types proportionally to active vehicles
         import random
